@@ -1,0 +1,18 @@
+[package]
+name = "solver"
+version = "0.0.0"
+authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
+edition = "2021"
+publish = false
+
+[dependencies]
+env_logger = { workspace = true }
+log = { workspace = true }
+glam = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "benchmark"
+harness = false

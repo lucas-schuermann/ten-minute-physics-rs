@@ -1,0 +1,27 @@
+on:
+  push:
+    branches:
+      - master
+
+name: Build and deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: jetli/wasm-pack-action@v0.4.0
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Build
+        run: |
+          npm install
+          npm run release
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4.4.1
+        with:
+          branch: gh-pages # The branch the action should deploy to
+          folder: dist # The folder the action should deploy

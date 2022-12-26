@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist/",
+        "module": "es2022",
+        "target": "es2022",
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "removeComments": true,
+        // strict Checks
+        "alwaysStrict": true,
+        "allowUnreachableCode": false,
+        "noImplicitAny": true,
+        //"strictNullChecks": true,
+        // linter Checks
+        "noImplicitReturns": true,
+        "noUncheckedIndexedAccess": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true
+    },
+    "include": [
+        "./**/*.ts"
+    ],
+    "exclude": [
+        "node_modules/**/*"
+    ]
+}

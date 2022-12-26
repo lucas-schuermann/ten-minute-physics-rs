@@ -1,0 +1,24 @@
+[package]
+name = "demos"
+version = "0.0.0"
+authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cgmath = { workspace = true }
+js-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+glam = { workspace = true }
+getrandom = { workspace = true }
+rand = { workspace = true }
+once_cell = { workspace = true }
+
+solver = { path = "../solver" }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3"]
