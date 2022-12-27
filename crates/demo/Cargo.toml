@@ -1,5 +1,5 @@
 [package]
-name = "demos"
+name = "demo"
 version = "0.0.0"
 authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
 edition = "2021"

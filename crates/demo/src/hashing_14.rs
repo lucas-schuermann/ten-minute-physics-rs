@@ -1,11 +1,12 @@
 use glam::{vec3, Vec3};
 use once_cell::sync::Lazy;
 use rand::Rng;
+use wasm_bindgen::prelude::*;
 
-use solver::hash::Hash;
+use solver::hashing_11::Hash;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
-pub(crate) const RADIUS: f32 = 0.025;
+pub const RADIUS: f32 = 0.025;
 const MIN_DIST: f32 = 2.0 * RADIUS;
 const MIN_DIST_SQ: f32 = MIN_DIST * MIN_DIST;
 const SPACING: f32 = 3.0 * RADIUS;
@@ -18,30 +19,36 @@ const NUMY: Lazy<usize> =
     Lazy::new(|| f32::floor((BOUNDS[1].y - BOUNDS[0].y - 2.0 * SPACING) / SPACING) as usize);
 const NUMZ: Lazy<usize> =
     Lazy::new(|| f32::floor((BOUNDS[1].z - BOUNDS[0].z - 2.0 * SPACING) / SPACING) as usize);
-pub(crate) const NUM_BODIES: Lazy<usize> = Lazy::new(|| *NUMX * *NUMY * *NUMZ);
+pub const NUM_BODIES: Lazy<usize> = Lazy::new(|| *NUMX * *NUMY * *NUMZ);
 
-pub(crate) struct Demo {
+#[wasm_bindgen]
+pub struct HashSimulation {
     num_bodies: usize,
-    pub(crate) pos: Vec<Vec3>,
-    pub(crate) collisions: Vec<u8>, // store as u8 rather than bool so we can share directly with JS
+    pos: Vec<Vec3>,
+    collisions: Vec<u8>, // store as u8 rather than bool so we can share directly with JS
     prev: Vec<Vec3>,
     vel: Vec<Vec3>,
     hash: Hash,
 }
 
-impl Demo {
-    pub(crate) fn new() -> Self {
-        Self {
+#[wasm_bindgen]
+impl HashSimulation {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<HashSimulation, JsValue> {
+        let mut sim = Self {
             num_bodies: *NUM_BODIES,
             pos: vec![Vec3::ZERO; *NUM_BODIES],
             collisions: vec![0; *NUM_BODIES],
             prev: vec![Vec3::ZERO; *NUM_BODIES],
             vel: vec![Vec3::ZERO; *NUM_BODIES],
             hash: Hash::new(MIN_DIST, *NUM_BODIES),
-        }
+        };
+        sim.reset();
+        Ok(sim)
     }
 
-    pub(crate) fn init(&mut self) {
+    #[wasm_bindgen]
+    pub fn reset(&mut self) {
         let mut rng = rand::thread_rng();
         for xi in 0..*NUMX {
             for yi in 0..*NUMY {
@@ -56,7 +63,8 @@ impl Demo {
         }
     }
 
-    pub(crate) fn update(&mut self) {
+    #[wasm_bindgen]
+    pub fn step(&mut self) {
         // integrate
         for i in 0..self.num_bodies {
             self.prev[i] = self.pos[i];
@@ -103,5 +111,32 @@ impl Demo {
                 }
             }
         }
+    }
+
+    // manually define since `#[wasm_bindgen]` doesn't yet work for constants
+    #[wasm_bindgen]
+    pub fn num_bodies(&self) -> usize {
+        *NUM_BODIES
+    }
+
+    #[wasm_bindgen]
+    pub fn radius(&self) -> f32 {
+        RADIUS
+    }
+
+    #[wasm_bindgen]
+    pub fn body_positions_ptr(&self) -> *const Vec3 {
+        // Generally, this is unsafe! We take care in JS to make sure to
+        // query the positions array pointer after heap allocations have
+        // occurred (which move the location).
+        // Positions is a Vec<Vec3>, which is a linear array of f32s in
+        // memory.
+        self.pos.as_ptr()
+    }
+
+    #[wasm_bindgen]
+    pub fn body_collisions_ptr(&self) -> *const u8 {
+        // See above comment for `body_positions_ptr` re: safety
+        self.collisions.as_ptr()
     }
 }

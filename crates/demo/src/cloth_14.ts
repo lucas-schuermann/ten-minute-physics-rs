@@ -1,9 +1,9 @@
-import GUI from 'lil-gui'
+import GUI, { Controller } from 'lil-gui';
 import * as THREE from 'three';
 
+import { ClothSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { ClothSim } from '../pkg';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { Demo, Scene, SceneConfig } from './lib';
 
 type ClothDemoProps = {
     triangles: number;
@@ -13,68 +13,47 @@ type ClothDemoProps = {
     substeps: number;
     bendingCompliance: number;
     stretchingCompliance: number;
-    reset: () => void;
 };
 
-class ClothDemo {
-    sim: ClothSim;
-    canvas: HTMLCanvasElement;
-    grabber: Grabber;
-    scene: THREE.Scene;
-    camera: THREE.Camera;
-    controls: OrbitControls;
+const ClothDemoConfig: SceneConfig = {
+    cameraZ: 1,
+    cameraLookAt: new THREE.Vector3(0, 0.6, 0),
+}
+
+class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
+    sim: ClothSimulation;
+    scene: Scene;
     props: ClothDemoProps;
-    guiFolder: GUI;
-    edgeMesh: any;
-    triMesh: any;
-    positions: any;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, guiFolder: GUI, scene: THREE.Scene, camera: THREE.Camera, controls: OrbitControls) {
-        this.sim = new rust_wasm.ClothSim(canvas);
+    private grabber: Grabber;
+    private edgeMesh: THREE.LineSegments;
+    private triMesh: THREE.Mesh;
+    private positions: Float32Array;
 
-        // bound
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+        this.sim = new rust_wasm.ClothSimulation(canvas);
         this.scene = scene;
-        this.camera = camera;
-        this.controls = controls;
-        this.canvas = canvas;
-
-        // members
-        this.guiFolder = guiFolder;
+        this.initControls(folder, canvas);
     }
 
-    init(renderer: THREE.Renderer) {
-        // grab handler
-        this.grabber = new Grabber(this.sim, renderer, this.camera, this.scene);
-        const onPointer = (e: MouseEvent) => {
-            e.preventDefault();
-            if (e.type == "pointerdown") {
-                this.grabber.mouseDown = true;
-                this.grabber.start(e.clientX, e.clientY);
-                if (this.grabber.intersectedObject) {
-                    this.controls.saveState();
-                    this.controls.enabled = false;
-                }
-            } else if (e.type == "pointermove" && this.grabber.mouseDown) {
-                this.grabber.move(e.clientX, e.clientY);
-            } else if (e.type == "pointerup") {
-                this.grabber.mouseDown = false;
-                this.controls.enabled = true;
-                if (this.grabber.intersectedObject) {
-                    this.grabber.end();
-                    this.controls.reset();
-                }
-            }
-        }
-        this.canvas.addEventListener('pointerdown', onPointer, false);
-        this.canvas.addEventListener('pointermove', onPointer, false);
-        this.canvas.addEventListener('pointerup', onPointer, false);
-
-        this.initControls();
+    init() {
         this.initMesh();
     }
 
-    initControls() {
-        // populate controls
+    update() {
+        if (this.props.animate) {
+            this.sim.step();
+            this.updateMesh();
+            this.grabber.increaseTime(this.sim.dt());
+        }
+    }
+
+    reset() {
+        this.sim.reset();
+        this.updateMesh();
+    }
+
+    private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
             triangles: this.sim.num_tris(),
             vertices: this.sim.num_particles(),
@@ -83,26 +62,46 @@ class ClothDemo {
             substeps: 15,
             bendingCompliance: 1,
             stretchingCompliance: 0,
-            reset: () => {
-                console.log('not yet implemented'); // LVSTODO
-                //this.sim.reset();
-                this.updateMesh();
-            },
         };
-        this.guiFolder.add(this.props, 'triangles').disable();
-        this.guiFolder.add(this.props, 'vertices').disable();
-        this.guiFolder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
-        this.guiFolder.add(this.props, 'bendingCompliance').name('bending compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
-        this.guiFolder.add(this.props, 'stretchingCompliance').name('stretching compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretching_compliance(v));
-        this.guiFolder.add(this.props, 'showEdges').name('show edges').onChange((s: boolean) => {
+        folder.add(this.props, 'triangles').disable();
+        folder.add(this.props, 'vertices').disable();
+        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
+        folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
+        folder.add(this.props, 'stretchingCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretching_compliance(v));
+        folder.add(this.props, 'showEdges').name('show edges').onChange((s: boolean) => {
             this.edgeMesh.visible = s;
             this.triMesh.visible = !s;
         });
-        this.guiFolder.add(this.props, 'animate');
-        //this.guiFolder.add(this.props, 'reset').name('reset simulation');
+        const animateController = folder.add(this.props, 'animate');
+
+        // grab handler
+        this.grabber = new Grabber(this.sim, this.scene, this.props, animateController);
+        const onPointer = (e: MouseEvent) => {
+            e.preventDefault();
+            if (e.type == "pointerdown") {
+                this.grabber.mouseDown = true;
+                this.grabber.start(e.clientX, e.clientY);
+                if (this.grabber.intersectedObject) {
+                    this.scene.controls.saveState();
+                    this.scene.controls.enabled = false;
+                }
+            } else if (e.type == "pointermove" && this.grabber.mouseDown) {
+                this.grabber.move(e.clientX, e.clientY);
+            } else if (e.type == "pointerup") {
+                this.grabber.mouseDown = false;
+                this.scene.controls.enabled = true;
+                if (this.grabber.intersectedObject) {
+                    this.grabber.end();
+                    this.scene.controls.reset();
+                }
+            }
+        }
+        canvas.addEventListener('pointerdown', onPointer, false);
+        canvas.addEventListener('pointermove', onPointer, false);
+        canvas.addEventListener('pointerup', onPointer, false);
     }
 
-    initMesh() {
+    private initMesh() {
         const tri_ids = Array.from(this.sim.mesh_tri_ids());
         const edge_ids = Array.from(this.sim.mesh_edge_ids());
 
@@ -122,7 +121,7 @@ class ClothDemo {
         const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
         this.edgeMesh = new THREE.LineSegments(geometry, lineMaterial);
         this.edgeMesh.visible = false;
-        this.scene.add(this.edgeMesh);
+        this.scene.scene.add(this.edgeMesh);
 
         // visual tri mesh
         geometry = new THREE.BufferGeometry();
@@ -132,21 +131,13 @@ class ClothDemo {
         this.triMesh = new THREE.Mesh(geometry, visMaterial);
         this.triMesh.castShadow = true;
         this.triMesh.layers.enable(1);
-        this.scene.add(this.triMesh);
+        this.scene.scene.add(this.triMesh);
         geometry.computeVertexNormals();
 
         this.updateMesh();
     }
 
-    update() {
-        if (this.props.animate) {
-            this.sim.step();
-            this.updateMesh();
-            this.grabber.increaseTime(this.sim.dt());
-        }
-    }
-
-    updateMesh() {
+    private updateMesh() {
         this.triMesh.geometry.computeVertexNormals();
         this.triMesh.geometry.attributes.position.needsUpdate = true;
         this.triMesh.geometry.computeBoundingSphere();
@@ -155,21 +146,27 @@ class ClothDemo {
 }
 
 class Grabber {
-    sim: ClothSim;
-    raycaster: THREE.Raycaster;
-    intersectedObject: boolean;
-    distance: number;
+    sim: ClothSimulation;
+    scene: Scene;
+    props: ClothDemoProps;
+    animateController: Controller;
+
     mousePos: THREE.Vector2;
     mouseDown: boolean;
-    prevPos: THREE.Vector3;
-    vel: THREE.Vector3;
-    time: number;
-    rect: DOMRect;
-    camera: THREE.Camera;
-    scene: THREE.Scene;
+    intersectedObject: boolean;
 
-    constructor(sim: ClothSim, renderer: THREE.Renderer, camera: THREE.Camera, scene: THREE.Scene) {
+    private raycaster: THREE.Raycaster;
+    private distance: number;
+    private prevPos: THREE.Vector3;
+    private vel: THREE.Vector3;
+    private time: number;
+    private rect: DOMRect;
+
+    constructor(sim: ClothSimulation, scene: Scene, props: ClothDemoProps, animateController: Controller) {
         this.sim = sim;
+        this.scene = scene;
+        this.props = props;
+        this.animateController = animateController;
         this.raycaster = new THREE.Raycaster();
         this.raycaster.layers.set(1);
         this.raycaster.params.Line.threshold = 0.1;
@@ -180,9 +177,7 @@ class Grabber {
         this.prevPos = new THREE.Vector3();
         this.vel = new THREE.Vector3();
         this.time = 0.0;
-        this.rect = renderer.domElement.getBoundingClientRect();
-        this.camera = camera;
-        this.scene = scene;
+        this.rect = scene.renderer.domElement.getBoundingClientRect();
     }
     increaseTime(dt: number) {
         this.time += dt;
@@ -190,12 +185,12 @@ class Grabber {
     updateRaycaster(x: number, y: number) {
         this.mousePos.x = ((x - this.rect.left) / this.rect.width) * 2 - 1;
         this.mousePos.y = -((y - this.rect.top) / this.rect.height) * 2 + 1;
-        this.raycaster.setFromCamera(this.mousePos, this.camera);
+        this.raycaster.setFromCamera(this.mousePos, this.scene.camera);
     }
     start(x: number, y: number) {
         this.intersectedObject = false;
         this.updateRaycaster(x, y);
-        const intersects = this.raycaster.intersectObjects(this.scene.children);
+        const intersects = this.raycaster.intersectObjects(this.scene.scene.children);
         if (intersects.length > 0) {
             const obj = intersects[0].object.userData;
             if (obj) {
@@ -207,11 +202,8 @@ class Grabber {
                 this.prevPos.copy(pos);
                 this.vel.set(0.0, 0.0, 0.0);
                 this.time = 0.0;
-                /*
-                if (simulating == false) {
-                    toggleSimulating();
-                }
-                */
+                this.props.animate = true;
+                this.animateController.updateDisplay();
             }
         }
     }
@@ -242,4 +234,4 @@ class Grabber {
     }
 }
 
-export { ClothDemo };
+export { ClothDemo, ClothDemoConfig };

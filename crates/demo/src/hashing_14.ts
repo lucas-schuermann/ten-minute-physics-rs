@@ -1,66 +1,69 @@
-import GUI from 'lil-gui'
+import GUI from 'lil-gui';
 import * as THREE from 'three';
 
+import { HashSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { HashSim } from '../pkg';
+import { Demo, Scene, SceneConfig } from './lib';
 
 type HashDemoProps = {
     bodies: number;
     animate: boolean;
     showCollisions: boolean;
-    reset: () => void;
 };
 
-class HashDemo {
-    sim: HashSim;
-    scene: THREE.Scene;
-    camera: THREE.Camera;
+const HashDemoConfig: SceneConfig = {
+    cameraZ: 2.5,
+    cameraLookAt: new THREE.Vector3(0, 0.9, 0),
+}
+
+const baseColor = new THREE.Color(0xFF0000);
+const collisionColor = new THREE.Color(0xFF8000);
+
+class HashDemo implements Demo<HashSimulation, HashDemoProps> {
+    sim: HashSimulation;
+    scene: Scene;
     props: HashDemoProps;
-    guiFolder: GUI;
-    mesh: any;
-    translationMatrix: any;
-    colors: any;
-    positions: any;
-    collisions: any;
-    baseColor: THREE.Color;
-    collisionColor: THREE.Color;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, guiFolder: GUI, scene: THREE.Scene, camera: THREE.Camera) {
-        this.sim = new rust_wasm.HashSim(canvas);
+    private mesh: THREE.InstancedMesh;
+    private translationMatrix: THREE.Matrix4;
+    private colors: Float32Array;
+    private positions: Float32Array;
+    private collisions: Uint8Array;
 
-        // bound
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+        this.sim = new rust_wasm.HashSimulation(canvas);
         this.scene = scene;
-        this.camera = camera;
-
-        // members
-        this.guiFolder = guiFolder;
-        this.baseColor = new THREE.Color(0xFF0000);
-        this.collisionColor = new THREE.Color(0xFF8000);
+        this.initControls(folder);
     }
 
     init() {
-        this.initControls();
         this.initMesh();
     }
 
-    initControls() {
-        // populate controls
+    update() {
+        if (this.props.animate) {
+            this.sim.step();
+            this.updateMesh();
+        }
+    }
+
+    reset() {
+        this.sim.reset();
+        this.updateMesh();
+    }
+
+    private initControls(folder: GUI) {
         this.props = {
             bodies: this.sim.num_bodies(),
             animate: true,
             showCollisions: false,
-            reset: () => {
-                this.sim.reset();
-                this.updateMesh();
-            },
         };
-        this.guiFolder.add(this.props, 'bodies').disable();
-        this.guiFolder.add(this.props, 'showCollisions').name('show collisions');
-        this.guiFolder.add(this.props, 'animate');
-        this.guiFolder.add(this.props, 'reset').name('reset simulation');
+        folder.add(this.props, 'bodies').disable();
+        folder.add(this.props, 'showCollisions').name('show collisions');
+        folder.add(this.props, 'animate');
     }
 
-    initMesh() {
+    private initMesh() {
         const material = new THREE.MeshPhongMaterial();
         const geometry = new THREE.SphereGeometry(this.sim.radius(), 8, 8);
         this.mesh = new THREE.InstancedMesh(geometry, material, this.sim.num_bodies());
@@ -68,7 +71,7 @@ class HashDemo {
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.colors = new Float32Array(3 * this.sim.num_bodies());
         this.mesh.instanceColor = new THREE.InstancedBufferAttribute(this.colors, 3, false, 1);
-        this.scene.add(this.mesh);
+        this.scene.scene.add(this.mesh);
 
         // Here, we store the pointer to the positions buffer location after the simulation is
         // initialized (all allocations are completed). In the WASM linear heap, it will be 
@@ -81,27 +84,20 @@ class HashDemo {
         this.updateMesh();
     }
 
-    update() {
-        if (this.props.animate) {
-            this.sim.step();
-            this.updateMesh();
-        }
-    }
-
-    updateMesh() {
+    private updateMesh() {
         for (let i = 0; i < this.positions.length; i++) {
             this.translationMatrix.makeTranslation(this.positions[3 * i], this.positions[3 * i + 1], this.positions[3 * i + 2]);
             this.mesh.setMatrixAt(i, this.translationMatrix);
             if (this.props.showCollisions && this.collisions[i] === 1) {
                 //this.mesh.setColorAt(i, this.collisionColor);
-                this.colors[3 * i] = this.collisionColor.r;
-                this.colors[3 * i + 1] = this.collisionColor.g;
-                this.colors[3 * i + 2] = this.collisionColor.b;
+                this.colors[3 * i] = collisionColor.r;
+                this.colors[3 * i + 1] = collisionColor.g;
+                this.colors[3 * i + 2] = collisionColor.b;
             } else {
                 //this.mesh.setColorAt(i, this.baseColor);
-                this.colors[3 * i] = this.baseColor.r;
-                this.colors[3 * i + 1] = this.baseColor.g;
-                this.colors[3 * i + 2] = this.baseColor.b;
+                this.colors[3 * i] = baseColor.r;
+                this.colors[3 * i + 1] = baseColor.g;
+                this.colors[3 * i + 2] = baseColor.b;
             }
         }
         this.mesh.instanceMatrix.needsUpdate = true;
@@ -109,4 +105,4 @@ class HashDemo {
     }
 }
 
-export { HashDemo };
+export { HashDemo, HashDemoConfig };

@@ -5,7 +5,7 @@ const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 module.exports = (_, argv) => {
     console.log('Building in %s mode', argv.mode);
     config = {
-        entry: './crates/demos/index.ts',
+        entry: './crates/demo/index.ts',
         resolve: {
             extensions: ['.ts', '.js'],
         },
@@ -20,14 +20,14 @@ module.exports = (_, argv) => {
         },
         output: {
             path: path.resolve(__dirname, 'dist'),
-            filename: './crates/demos/index.js',
+            filename: './crates/demo/index.js',
         },
         plugins: [
             new HtmlWebpackPlugin({
-                template: './crates/demos/index.html'
+                template: './crates/demo/index.html'
             }),
             new WasmPackPlugin({
-                crateDirectory: path.resolve(__dirname, "./crates/demos")
+                crateDirectory: path.resolve(__dirname, "./crates/demo")
             })
         ],
         experiments: {

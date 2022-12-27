@@ -5,13 +5,13 @@ use glam::{vec3, Vec3};
 use crate::mesh;
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
-const TIME_STEP: f32 = 1.0 / 60.0;
-const DEFAULT_NUM_SOLVER_SUBSTEPS: usize = 15;
-const BENDING_COMPLIANCE: f32 = 1.0;
-const STRETCHING_COMPLIANCE: f32 = 0.0;
+pub const TIME_STEP: f32 = 1.0 / 60.0;
+pub const DEFAULT_NUM_SOLVER_SUBSTEPS: usize = 15;
+pub const DEFAULT_BENDING_COMPLIANCE: f32 = 1.0;
+pub const DEFAULT_STRETCHING_COMPLIANCE: f32 = 0.0;
 
 pub struct Cloth {
-    num_particles: usize,
+    pub num_particles: usize,
     dt: f32,
     inv_dt: f32,
 
@@ -89,7 +89,8 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
 }
 
 impl Cloth {
-    pub fn new(mesh: &mesh::MeshData, bending_compliance: f32, dt: f32) -> Self {
+    pub fn new(dt: f32) -> Self {
+        let mesh = mesh::get_cloth();
         let num_particles = mesh.vertices.len();
         let pos = mesh.vertices.clone();
 
@@ -138,14 +139,21 @@ impl Cloth {
             stretching_ids: edge_ids,
             bending_ids: tri_pair_ids,
 
-            stretching_compliance: STRETCHING_COMPLIANCE,
-            bending_compliance,
+            stretching_compliance: DEFAULT_STRETCHING_COMPLIANCE,
+            bending_compliance: DEFAULT_BENDING_COMPLIANCE,
 
             // solver state
             grad: Vec3::ZERO,
         };
         cloth.init(&mesh.tri_ids);
         cloth
+    }
+
+    pub fn reset(&mut self) {
+        let mesh = mesh::get_cloth();
+        self.pos.copy_from_slice(&mesh.vertices);
+        self.prev.copy_from_slice(&self.pos);
+        self.vel.fill(Vec3::ZERO);
     }
 
     pub fn set_dt(&mut self, dt: f32) {
@@ -322,52 +330,5 @@ impl Cloth {
             self.vel[i] = *vel;
         }
         self.grab_id = None;
-    }
-}
-
-pub struct State {
-    pub body: Cloth,
-
-    num_substeps: usize,
-    pub dt: f32,
-}
-
-impl State {
-    pub fn new() -> Self {
-        let cloth_mesh = mesh::get_cloth();
-        let dt = TIME_STEP / DEFAULT_NUM_SOLVER_SUBSTEPS as f32;
-        let body = Cloth::new(&cloth_mesh, BENDING_COMPLIANCE, dt);
-
-        Self {
-            body,
-            num_substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
-            dt,
-        }
-    }
-    pub fn edge_ids(&self) -> &Vec<[usize; 2]> {
-        &self.body.edge_ids
-    }
-    pub fn tri_ids(&self) -> &Vec<[usize; 3]> {
-        &self.body.tri_ids
-    }
-
-    pub fn particle_positions_ptr(&self) -> *const Vec3 {
-        self.body.pos.as_ptr()
-    }
-
-    pub fn num_particles(&self) -> usize {
-        self.body.num_particles
-    }
-
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
-        self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32;
-        self.body.set_dt(self.dt);
-    }
-
-    pub fn update(&mut self) {
-        for _ in 0..self.num_substeps {
-            self.body.simulate();
-        }
     }
 }

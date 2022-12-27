@@ -1,23 +1,37 @@
 import GUI from 'lil-gui';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as Stats from 'stats.js';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-import { HashDemo } from './src/hash';
-import { ClothDemo } from './src/cloth';
+import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
+import { HashDemo, HashDemoConfig } from './src/hashing_14';
+import { Demo, Scene, SceneConfig } from './src/lib';
 
 import('./pkg').then(rust_wasm => {
-    let scene: THREE.Scene;
-    let camera: THREE.Camera;
-    let renderer: THREE.WebGLRenderer;
-    let controls: OrbitControls;
-
     const $ = (id: string) => document.getElementById(id);
-    //const useDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const canvas = $('canvas') as HTMLCanvasElement;
 
-    const initThreeScene = () => {
-        // TODO: handle retina
+    const demos: Record<string, { config: SceneConfig, demo: any }> = { // LVSTODO type
+        '14-hashing': {
+            config: HashDemoConfig,
+            demo: HashDemo,
+        },
+        '16-cloth': {
+            config: ClothDemoConfig,
+            demo: ClothDemo,
+        }
+    };
+    const demoNames = Object.keys(demos);
+    let demo: Demo<any, any>;
+    let scene: Scene;
+
+    const initThreeScene = (config: SceneConfig): Scene => {
+        let scene: THREE.Scene;
+        let camera: THREE.Camera;
+        let renderer: THREE.WebGLRenderer;
+        let controls: OrbitControls;
+
+        // LVSTODO: handle retina
         canvas.width = window.innerWidth * 0.4;
         canvas.height = window.innerHeight * 0.35;
 
@@ -74,15 +88,17 @@ import('./pkg').then(rust_wasm => {
 
         // Camera
         camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
-        camera.position.set(0, 1, 1);
+        camera.position.set(0, 1, config.cameraZ);
         camera.updateMatrixWorld();
         scene.add(camera);
 
         controls = new OrbitControls(camera, renderer.domElement);
         controls.zoomSpeed = 2.0;
         controls.panSpeed = 0.4;
-        controls.target = new THREE.Vector3(0.0, 0.6, 0.0);
+        controls.target = config.cameraLookAt;
         controls.update();
+
+        return { scene, camera, renderer, controls };
     };
 
     // attach perf stats window
@@ -94,39 +110,32 @@ import('./pkg').then(rust_wasm => {
     // populate controls window
     const gui = new GUI({ autoPlace: false });
     gui.domElement.style.opacity = '0.9';
-    let demoSelection = {
-        demoSelection: 'Hash',
+    let props = {
+        demoSelection: demoNames[0],
+        reset: () => demo.reset(),
     }
     const folder = gui.addFolder('General');
     $('gui').appendChild(gui.domElement);
-    let demoFolder = gui.addFolder('Demo Settings');
-    let demo: ClothDemo | HashDemo;
+    let demoFolder: GUI;
     const initDemo = (s: string) => {
         // initialize renderer
-        initThreeScene();
-        demoFolder.destroy();
+        if (demoFolder) demoFolder.destroy();
         demoFolder = gui.addFolder('Demo Settings');
-        switch (s) {
-            case 'Hash':
-                demo = new HashDemo(rust_wasm, canvas, demoFolder, scene, camera);
-                demo.init();
-                break;
-            case 'Cloth':
-                demo = new ClothDemo(rust_wasm, canvas, demoFolder, scene, camera, controls);
-                demo.init(renderer);
-                break;
-        }
+        scene = initThreeScene(demos[s].config);
+        demo = new demos[s].demo(rust_wasm, canvas, scene, demoFolder);
+        demo.init();
     }
-    folder.add(demoSelection, 'demoSelection', ['Cloth', 'Hash']).name('demo').onFinishChange(initDemo);
+    folder.add(props, 'demoSelection', demoNames).name('select demo').onFinishChange(initDemo);
+    folder.add(props, 'reset').name('reset simulation');
 
     // default init
-    initDemo('Hash');
+    initDemo(demoNames[0]);
 
     // main loop
     const step = () => {
         stats.begin(); // collect perf data for stats.js
         demo.update();
-        renderer.render(scene, camera);
+        scene.renderer.render(scene.scene, scene.camera);
         stats.end();
         requestAnimationFrame(step);
     }
