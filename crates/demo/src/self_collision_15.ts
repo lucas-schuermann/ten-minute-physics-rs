@@ -1,37 +1,41 @@
 import GUI from 'lil-gui';
 import * as THREE from 'three';
 
-import { ClothSimulation } from '../pkg';
+import { SelfCollisionSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene, SceneConfig, Grabber } from './lib';
 
-type ClothDemoProps = {
+type SelfCollisionDemoProps = {
     triangles: number;
     vertices: number;
     animate: boolean;
+    hangFromTop: boolean;
+    handleCollisions: boolean;
     showEdges: boolean;
     substeps: number;
     bendingCompliance: number;
-    stretchingCompliance: number;
+    stretchCompliance: number;
+    shearCompliance: number;
 };
 
-const ClothDemoConfig: SceneConfig = {
-    cameraZ: 1,
-    cameraLookAt: new THREE.Vector3(0, 0.6, 0),
+const SelfCollisionDemoConfig: SceneConfig = {
+    cameraZ: 0.5,
+    cameraLookAt: new THREE.Vector3(0, 0.1, 0),
 }
 
-class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
-    sim: ClothSimulation;
+class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDemoProps> {
+    sim: SelfCollisionSimulation;
     scene: Scene;
-    props: ClothDemoProps;
+    props: SelfCollisionDemoProps;
 
     private grabber: Grabber;
     private edgeMesh: THREE.LineSegments;
-    private triMesh: THREE.Mesh;
+    private frontMesh: THREE.Mesh;
+    private backMesh: THREE.Mesh;
     private positions: Float32Array;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
-        this.sim = new rust_wasm.ClothSimulation(canvas);
+        this.sim = new rust_wasm.SelfCollisionSimulation(canvas);
         this.scene = scene;
         this.initControls(folder, canvas);
     }
@@ -58,19 +62,32 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
             triangles: this.sim.num_tris(),
             vertices: this.sim.num_particles(),
             animate: true,
+            hangFromTop: false,
+            handleCollisions: true,
             showEdges: false,
-            substeps: 15,
+            substeps: 10,
             bendingCompliance: 1,
-            stretchingCompliance: 0,
+            stretchCompliance: 0,
+            shearCompliance: 0.001,
         };
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
         folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
-        folder.add(this.props, 'stretchingCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretching_compliance(v));
+        folder.add(this.props, 'stretchCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretch_compliance(v));
+        folder.add(this.props, 'shearCompliance').name('shear compliance').min(0.001).max(1).step(0.01).onChange((v: number) => this.sim.set_shear_compliance(v));
+        folder.add(this.props, 'hangFromTop').name('hang from top').onChange((v: boolean) => {
+            this.sim.set_attach(v);
+            this.reset();
+        })
+        folder.add(this.props, 'handleCollisions').name('handle collisions').onChange((v: boolean) => {
+            this.sim.set_handle_collisions(v);
+            this.reset();
+        });
         folder.add(this.props, 'showEdges').name('show edges').onChange((s: boolean) => {
             this.edgeMesh.visible = s;
-            this.triMesh.visible = !s;
+            this.frontMesh.visible = !s;
+            this.backMesh.visible = !s;
         });
         const animateController = folder.add(this.props, 'animate');
 
@@ -104,22 +121,27 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
         geometry.setIndex(tri_ids);
-        const visMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, side: THREE.DoubleSide });
-        this.triMesh = new THREE.Mesh(geometry, visMaterial);
-        this.triMesh.castShadow = true;
-        this.triMesh.layers.enable(1);
-        this.scene.scene.add(this.triMesh);
+        const frontMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, side: THREE.FrontSide });
+        this.frontMesh = new THREE.Mesh(geometry, frontMaterial);
+        this.frontMesh.castShadow = true;
+        this.frontMesh.layers.enable(1);
+        this.scene.scene.add(this.frontMesh);
+        const backMaterial = new THREE.MeshPhongMaterial({ color: 0xff8000, side: THREE.BackSide });
+        this.backMesh = new THREE.Mesh(geometry, backMaterial);
+        this.backMesh.castShadow = true;
+        this.backMesh.layers.enable(1);
+        this.scene.scene.add(this.backMesh);
         geometry.computeVertexNormals();
 
         this.updateMesh();
     }
 
     private updateMesh() {
-        this.triMesh.geometry.computeVertexNormals();
-        this.triMesh.geometry.attributes.position.needsUpdate = true;
-        this.triMesh.geometry.computeBoundingSphere();
+        this.frontMesh.geometry.computeVertexNormals();
+        this.frontMesh.geometry.attributes.position.needsUpdate = true;
+        this.frontMesh.geometry.computeBoundingSphere();
         this.edgeMesh.geometry.attributes.position.needsUpdate = true;
     }
 }
 
-export { ClothDemo, ClothDemoConfig };
+export { SelfCollisionDemo, SelfCollisionDemoConfig };

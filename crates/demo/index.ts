@@ -3,22 +3,27 @@ import * as Stats from 'stats.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+import { SelfCollisionDemo, SelfCollisionDemoConfig } from './src/self_collision_15';
 import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
-import { HashDemo, HashDemoConfig } from './src/hashing_14';
+import { HashDemo, HashDemoConfig } from './src/hashing_11';
 import { Demo, Scene, SceneConfig } from './src/lib';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
     const canvas = $('canvas') as HTMLCanvasElement;
 
-    const demos: Record<string, { config: SceneConfig, demo: any }> = { // LVSTODO type
-        '14-hashing': {
+    const demos: Record<string, { config: SceneConfig, demo: any }> = {
+        '11-hashing': {
             config: HashDemoConfig,
             demo: HashDemo,
         },
-        '16-cloth': {
+        '14-cloth': {
             config: ClothDemoConfig,
             demo: ClothDemo,
+        },
+        '15-self-collision': {
+            config: SelfCollisionDemoConfig,
+            demo: SelfCollisionDemo,
         }
     };
     const demoNames = Object.keys(demos);

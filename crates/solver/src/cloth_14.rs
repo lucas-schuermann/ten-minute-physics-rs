@@ -12,7 +12,8 @@ pub const DEFAULT_STRETCHING_COMPLIANCE: f32 = 0.0;
 
 pub struct Cloth {
     pub num_particles: usize,
-    dt: f32,
+    num_substeps: usize,
+    pub dt: f32,
     inv_dt: f32,
 
     pub edge_ids: Vec<[usize; 2]>,
@@ -89,7 +90,7 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
 }
 
 impl Cloth {
-    pub fn new(dt: f32) -> Self {
+    pub fn new() -> Self {
         let mesh = mesh::get_cloth();
         let num_particles = mesh.vertices.len();
         let pos = mesh.vertices.clone();
@@ -120,12 +121,14 @@ impl Cloth {
             }
         }
 
+        let dt = TIME_STEP / DEFAULT_NUM_SOLVER_SUBSTEPS as f32;
         let mut cloth = Self {
             num_particles,
+            num_substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
+            dt: dt,
             inv_dt: 1.0 / dt,
             edge_ids: edge_ids.clone(),
             tri_ids: mesh.tri_ids.clone(),
-            dt,
             pos,
             prev: mesh.vertices.clone(),
             vel: vec![Vec3::ZERO; num_particles],
@@ -156,12 +159,13 @@ impl Cloth {
         self.vel.fill(Vec3::ZERO);
     }
 
-    pub fn set_dt(&mut self, dt: f32) {
-        self.dt = dt;
-        self.inv_dt = 1.0 / dt;
+    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+        self.num_substeps = num_substeps;
+        self.dt = TIME_STEP / num_substeps as f32;
+        self.inv_dt = 1.0 / self.dt;
     }
 
-    pub fn init(&mut self, tri_ids: &Vec<[usize; 3]>) {
+    fn init(&mut self, tri_ids: &Vec<[usize; 3]>) {
         self.inv_mass = vec![0.0; self.num_particles];
         let num_tris = tri_ids.len();
         let mut e0;
@@ -295,9 +299,11 @@ impl Cloth {
     }
 
     pub fn simulate(&mut self) {
-        self.pre_solve();
-        self.solve();
-        self.post_solve();
+        for _ in 0..self.num_substeps {
+            self.pre_solve();
+            self.solve();
+            self.post_solve();
+        }
     }
 
     pub fn start_grab(&mut self, pos: &Vec3) {

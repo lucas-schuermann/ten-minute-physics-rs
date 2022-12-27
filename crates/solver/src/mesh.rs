@@ -5,6 +5,7 @@ pub struct MeshData {
     pub tri_ids: Vec<[usize; 3]>,
 }
 
+#[allow(clippy::unreadable_literal)]
 pub fn get_cloth() -> MeshData {
     let verts_raw = [
         -0.200000, 1.145859, -0.000000, -0.200000, 1.105859, -0.000000, -0.200000, 1.065859,

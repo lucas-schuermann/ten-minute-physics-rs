@@ -1,24 +1,33 @@
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 
-use solver::cloth_14::*;
+use solver::self_collision_15::*;
 
 #[wasm_bindgen]
-pub struct ClothSimulation {
+pub struct SelfCollisionSimulation {
     cloth: Cloth,
+    attach: bool,
 }
 
 #[wasm_bindgen]
-impl ClothSimulation {
+impl SelfCollisionSimulation {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<ClothSimulation, JsValue> {
+    pub fn new() -> Result<SelfCollisionSimulation, JsValue> {
         let cloth = Cloth::new();
-        Ok(Self { cloth })
+        Ok(Self {
+            cloth,
+            attach: false,
+        })
     }
 
     #[wasm_bindgen]
     pub fn reset(&mut self) {
-        self.cloth.reset();
+        self.cloth.reset(self.attach);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_attach(&mut self, attach: bool) {
+        self.attach = attach;
     }
 
     #[wasm_bindgen]
@@ -67,13 +76,23 @@ impl ClothSimulation {
     }
 
     #[wasm_bindgen]
+    pub fn set_handle_collisions(&mut self, handle_collisions: bool) {
+        self.cloth.handle_collisions = handle_collisions
+    }
+
+    #[wasm_bindgen]
     pub fn set_bending_compliance(&mut self, compliance: f32) {
         self.cloth.bending_compliance = compliance;
     }
 
     #[wasm_bindgen]
-    pub fn set_stretching_compliance(&mut self, compliance: f32) {
-        self.cloth.stretching_compliance = compliance;
+    pub fn set_stretch_compliance(&mut self, compliance: f32) {
+        self.cloth.stretch_compliance = compliance;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_shear_compliance(&mut self, compliance: f32) {
+        self.cloth.shear_compliance = compliance;
     }
 
     // We can copy since we are not performance sensitive for these two methods

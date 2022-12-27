@@ -6,6 +6,5 @@ edition = "2021"
 publish = false
 
 [dependencies]
-env_logger = { workspace = true }
-log = { workspace = true }
 glam = { workspace = true }
+rand = { workspace = true }
