@@ -12,7 +12,7 @@ pub const DEFAULT_SHEAR_COMPLIANCE: f32 = 0.0001;
 
 const VEL_LIMIT_MULTIPLIER: f32 = 0.2;
 const SPACING: f32 = 0.01;
-const JITTER: f32 = 0.001 * SPACING;
+const JITTER: f32 = -2.0 * (0.001 * SPACING) * (0.001 * SPACING);
 const THICKNESS: f32 = 0.01;
 const NUM_X: usize = 30;
 const NUM_Y: usize = 200;
@@ -138,9 +138,9 @@ impl Cloth {
         }
 
         self.pos.iter_mut().for_each(|p| {
-            p.x += -JITTER * 2.0 * JITTER * rng.gen::<f32>();
-            p.y += -JITTER * 2.0 * JITTER * rng.gen::<f32>();
-            p.z += -JITTER * 2.0 * JITTER * rng.gen::<f32>();
+            p.x += JITTER * rng.gen::<f32>();
+            p.y += JITTER * rng.gen::<f32>();
+            p.z += JITTER * rng.gen::<f32>();
         });
 
         self.rest_pos.copy_from_slice(&self.pos);

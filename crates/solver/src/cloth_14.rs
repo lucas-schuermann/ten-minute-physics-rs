@@ -35,6 +35,7 @@ pub struct Cloth {
     pub bending_compliance: f32,
     pub stretching_compliance: f32,
 
+    // for use as temp variable
     grad: Vec3,
 }
 
@@ -53,9 +54,9 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
             let id0 = tri_ids[i][j];
             let id1 = tri_ids[i][(j + 1) % 3];
             edges.push(Edge {
-                id0,
-                id1,
-                edge_num: i + j,
+                id0: id0.min(id1),
+                id1: id0.max(id1),
+                edge_num: 3 * i + j,
             });
         }
     }
@@ -82,8 +83,8 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
                 neighbors[e0.edge_num] = Some(e1.edge_num);
                 neighbors[e1.edge_num] = Some(e0.edge_num);
             }
+            i += 1;
         }
-        i += 1;
     }
 
     neighbors
@@ -125,7 +126,7 @@ impl Cloth {
         let mut cloth = Self {
             num_particles,
             num_substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
-            dt: dt,
+            dt,
             inv_dt: 1.0 / dt,
             edge_ids: edge_ids.clone(),
             tri_ids: mesh.tri_ids.clone(),
@@ -145,7 +146,6 @@ impl Cloth {
             stretching_compliance: DEFAULT_STRETCHING_COMPLIANCE,
             bending_compliance: DEFAULT_BENDING_COMPLIANCE,
 
-            // solver state
             grad: Vec3::ZERO,
         };
         cloth.init(&mesh.tri_ids);
@@ -192,7 +192,7 @@ impl Cloth {
 
         for i in 0..self.bending_lengths.len() {
             let id = self.bending_ids[i];
-            self.bending_lengths[i] = (self.pos[id[0]] - self.pos[id[1]]).length();
+            self.bending_lengths[i] = (self.pos[id[2]] - self.pos[id[3]]).length();
         }
 
         // attach

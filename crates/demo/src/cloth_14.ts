@@ -16,7 +16,7 @@ type ClothDemoProps = {
 };
 
 const ClothDemoConfig: SceneConfig = {
-    cameraZ: 1,
+    cameraYZ: [1, 1],
     cameraLookAt: new THREE.Vector3(0, 0.6, 0),
 }
 

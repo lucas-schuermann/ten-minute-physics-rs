@@ -20,7 +20,7 @@ type Scene = {
 }
 
 type SceneConfig = {
-    cameraZ: number;
+    cameraYZ: [number, number];
     cameraLookAt: THREE.Vector3;
 };
 

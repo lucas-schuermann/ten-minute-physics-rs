@@ -12,7 +12,7 @@ type HashDemoProps = {
 };
 
 const HashDemoConfig: SceneConfig = {
-    cameraZ: 2.5,
+    cameraYZ: [1.5, 2.75],
     cameraLookAt: new THREE.Vector3(0, 0.9, 0),
 }
 

@@ -19,7 +19,7 @@ type SelfCollisionDemoProps = {
 };
 
 const SelfCollisionDemoConfig: SceneConfig = {
-    cameraZ: 0.5,
+    cameraYZ: [0.3, 0.5],
     cameraLookAt: new THREE.Vector3(0, 0.1, 0),
 }
 
@@ -75,7 +75,7 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
         folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
         folder.add(this.props, 'stretchCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretch_compliance(v));
-        folder.add(this.props, 'shearCompliance').name('shear compliance').min(0.001).max(1).step(0.01).onChange((v: number) => this.sim.set_shear_compliance(v));
+        folder.add(this.props, 'shearCompliance').name('shear compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_shear_compliance(v));
         folder.add(this.props, 'hangFromTop').name('hang from top').onChange((v: boolean) => {
             this.sim.set_attach(v);
             this.reset();

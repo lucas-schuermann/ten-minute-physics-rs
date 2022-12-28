@@ -7,12 +7,17 @@ import { SelfCollisionDemo, SelfCollisionDemoConfig } from './src/self_collision
 import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
 import { HashDemo, HashDemoConfig } from './src/hashing_11';
 import { Demo, Scene, SceneConfig } from './src/lib';
+import { SoftBodiesDemo, SoftBodiesDemoConfig } from './src/softbodies_10';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
     const canvas = $('canvas') as HTMLCanvasElement;
 
     const demos: Record<string, { config: SceneConfig, demo: any }> = {
+        '10-softbodies': {
+            config: SoftBodiesDemoConfig,
+            demo: SoftBodiesDemo,
+        },
         '11-hashing': {
             config: HashDemoConfig,
             demo: HashDemo,
@@ -93,7 +98,7 @@ import('./pkg').then(rust_wasm => {
 
         // Camera
         camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
-        camera.position.set(0, 1, config.cameraZ);
+        camera.position.set(0, ...config.cameraYZ);
         camera.updateMatrixWorld();
         scene.add(camera);
 
