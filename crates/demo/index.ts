@@ -8,6 +8,7 @@ import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
 import { HashDemo, HashDemoConfig } from './src/hashing_11';
 import { Demo, Scene, SceneConfig } from './src/lib';
 import { SoftBodiesDemo, SoftBodiesDemoConfig } from './src/softbodies_10';
+import { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig } from './src/softbody_skinning_12';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
@@ -21,6 +22,10 @@ import('./pkg').then(rust_wasm => {
         '11-hashing': {
             config: HashDemoConfig,
             demo: HashDemo,
+        },
+        '12-softbody-skinning': {
+            config: SkinnedSoftbodyDemoConfig,
+            demo: SkinnedSoftbodyDemo,
         },
         '14-cloth': {
             config: ClothDemoConfig,
@@ -98,7 +103,7 @@ import('./pkg').then(rust_wasm => {
 
         // Camera
         camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
-        camera.position.set(0, ...config.cameraYZ);
+        camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
         camera.updateMatrixWorld();
         scene.add(camera);
 

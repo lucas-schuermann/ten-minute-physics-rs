@@ -5,6 +5,10 @@ import { ClothSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene, SceneConfig, Grabber } from './lib';
 
+const DEFAULT_NUM_SOLVER_SUBSTEPS = 15;
+const DEFAULT_BENDING_COMPLIANCE = 1.0;
+const DEFAULT_STRETCHING_COMPLIANCE = 0.0;
+
 type ClothDemoProps = {
     triangles: number;
     vertices: number;
@@ -31,7 +35,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     private positions: Float32Array;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
-        this.sim = new rust_wasm.ClothSimulation(canvas);
+        this.sim = new rust_wasm.ClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCHING_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
     }
@@ -59,9 +63,9 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
             vertices: this.sim.num_particles(),
             animate: true,
             showEdges: false,
-            substeps: 15,
-            bendingCompliance: 1,
-            stretchingCompliance: 0,
+            substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
+            bendingCompliance: DEFAULT_BENDING_COMPLIANCE,
+            stretchingCompliance: DEFAULT_STRETCHING_COMPLIANCE,
         };
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
@@ -91,7 +95,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         const positionsPtr = this.sim.particle_positions_ptr();
         this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles() * 3);
 
-        // visual edge mesh
+        // edge mesh
         let geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
         geometry.setIndex(edge_ids);

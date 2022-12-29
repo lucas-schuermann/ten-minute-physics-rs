@@ -5,6 +5,12 @@ import { SelfCollisionSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene, SceneConfig, Grabber } from './lib';
 
+const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
+const DEFAULT_BENDING_COMPLIANCE = 1.0;
+const DEFAULT_STRETCH_COMPLIANCE = 0.0;
+const DEFAULT_SHEAR_COMPLIANCE = 0.0001;
+const DEFAULT_FRICTION = 0.0;
+
 type SelfCollisionDemoProps = {
     triangles: number;
     vertices: number;
@@ -16,6 +22,7 @@ type SelfCollisionDemoProps = {
     bendingCompliance: number;
     stretchCompliance: number;
     shearCompliance: number;
+    friction: number;
 };
 
 const SelfCollisionDemoConfig: SceneConfig = {
@@ -35,7 +42,7 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
     private positions: Float32Array;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
-        this.sim = new rust_wasm.SelfCollisionSimulation(canvas);
+        this.sim = new rust_wasm.SelfCollisionSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCH_COMPLIANCE, DEFAULT_SHEAR_COMPLIANCE, DEFAULT_FRICTION);
         this.scene = scene;
         this.initControls(folder, canvas);
     }
@@ -65,10 +72,11 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
             hangFromTop: false,
             handleCollisions: true,
             showEdges: false,
-            substeps: 10,
-            bendingCompliance: 1,
-            stretchCompliance: 0,
-            shearCompliance: 0.001,
+            substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
+            bendingCompliance: DEFAULT_BENDING_COMPLIANCE,
+            stretchCompliance: DEFAULT_STRETCH_COMPLIANCE,
+            shearCompliance: DEFAULT_SHEAR_COMPLIANCE,
+            friction: DEFAULT_FRICTION,
         };
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
@@ -76,6 +84,7 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
         folder.add(this.props, 'stretchCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretch_compliance(v));
         folder.add(this.props, 'shearCompliance').name('shear compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_shear_compliance(v));
+        folder.add(this.props, 'friction').min(0).max(0.2).step(0.002).onChange((v: number) => this.sim.set_friction(v));
         folder.add(this.props, 'hangFromTop').name('hang from top').onChange((v: boolean) => {
             this.sim.set_attach(v);
             this.reset();

@@ -12,8 +12,20 @@ pub struct SelfCollisionSimulation {
 #[wasm_bindgen]
 impl SelfCollisionSimulation {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<SelfCollisionSimulation, JsValue> {
-        let cloth = Cloth::new();
+    pub fn new(
+        num_substeps: usize,
+        bending_compliance: f32,
+        stretch_compliance: f32,
+        shear_compliance: f32,
+        friction: f32,
+    ) -> Result<SelfCollisionSimulation, JsValue> {
+        let cloth = Cloth::new(
+            num_substeps,
+            bending_compliance,
+            stretch_compliance,
+            shear_compliance,
+            friction,
+        );
         Ok(Self {
             cloth,
             attach: false,
@@ -93,6 +105,11 @@ impl SelfCollisionSimulation {
     #[wasm_bindgen]
     pub fn set_shear_compliance(&mut self, compliance: f32) {
         self.cloth.shear_compliance = compliance;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_friction(&mut self, friction: f32) {
+        self.cloth.friction = friction;
     }
 
     // We can copy since we are not performance sensitive for these two methods

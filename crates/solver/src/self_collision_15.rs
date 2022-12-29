@@ -4,12 +4,7 @@ use rand::Rng;
 use crate::hashing_11::Hash;
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
-pub const TIME_STEP: f32 = 1.0 / 60.0;
-pub const DEFAULT_NUM_SOLVER_SUBSTEPS: usize = 10;
-pub const DEFAULT_BENDING_COMPLIANCE: f32 = 1.0;
-pub const DEFAULT_STRETCH_COMPLIANCE: f32 = 0.0;
-pub const DEFAULT_SHEAR_COMPLIANCE: f32 = 0.0001;
-
+const TIME_STEP: f32 = 1.0 / 60.0;
 const VEL_LIMIT_MULTIPLIER: f32 = 0.2;
 const SPACING: f32 = 0.01;
 const JITTER: f32 = -2.0 * (0.001 * SPACING) * (0.001 * SPACING);
@@ -60,14 +55,17 @@ pub struct Cloth {
     pub stretch_compliance: f32,
     pub shear_compliance: f32,
     pub bending_compliance: f32,
-
-    grad: Vec3,
-    grad1: Vec3,
-    grad2: Vec3,
+    pub friction: f32,
 }
 
 impl Cloth {
-    pub fn new() -> Self {
+    pub fn new(
+        num_substeps: usize,
+        bending_compliance: f32,
+        stretch_compliance: f32,
+        shear_compliance: f32,
+        friction: f32,
+    ) -> Self {
         let num_particles = NUM_X * NUM_Y;
 
         let mut edge_ids = vec![];
@@ -88,10 +86,10 @@ impl Cloth {
             }
         }
 
-        let dt = TIME_STEP / DEFAULT_NUM_SOLVER_SUBSTEPS as f32;
+        let dt = TIME_STEP / num_substeps as f32;
         let mut cloth = Self {
             num_particles,
-            num_substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
+            num_substeps,
             dt,
             inv_dt: 1.0 / dt,
             max_vel: VEL_LIMIT_MULTIPLIER * THICKNESS / dt,
@@ -106,15 +104,13 @@ impl Cloth {
             grab_id: None,
             grab_inv_mass: 0.0,
             constraints: vec![Constraint::default(); num_particles * NUM_CONSTRAINTS_PER_PARTICLE],
-            stretch_compliance: DEFAULT_STRETCH_COMPLIANCE,
-            shear_compliance: DEFAULT_SHEAR_COMPLIANCE,
-            bending_compliance: DEFAULT_BENDING_COMPLIANCE,
+            stretch_compliance,
+            shear_compliance,
+            bending_compliance,
+            friction,
             edge_ids,
             tri_ids,
             num_constraints: 0,
-            grad: Vec3::ZERO,
-            grad1: Vec3::ZERO,
-            grad2: Vec3::ZERO,
         };
         cloth.init();
         cloth
@@ -248,17 +244,17 @@ impl Cloth {
                 continue;
             }
 
-            self.grad = self.pos[id0] - self.pos[id1];
-            let len = self.grad.length();
+            let mut grad = self.pos[id0] - self.pos[id1];
+            let len = grad.length();
             if len == 0.0 {
                 continue;
             }
-            self.grad /= len;
+            grad /= len;
             let c = len - cons.rest_len;
             let alpha = self.get_compliance(cons) * self.inv_dt * self.inv_dt;
             let s = -c / (w + alpha);
-            self.pos[id0] += self.grad * s * w0;
-            self.pos[id1] += self.grad * -s * w1;
+            self.pos[id0] += grad * s * w0;
+            self.pos[id1] += grad * -s * w1;
         }
     }
 
@@ -269,8 +265,8 @@ impl Cloth {
             }
             if self.pos[i].y < 0.5 * self.thickness {
                 let damping = 1.0;
-                self.grad = self.pos[i] - self.prev[i];
-                self.pos[i] += self.grad * -damping;
+                let grad = self.pos[i] - self.prev[i];
+                self.pos[i] += grad * -damping;
                 self.pos[i].y = 0.5 * self.thickness;
             }
         }
@@ -290,8 +286,8 @@ impl Cloth {
                 if self.inv_mass[id1] == 0.0 {
                     continue;
                 }
-                self.grad = self.pos[id1] - self.pos[id0];
-                let dist_sq = self.grad.length_squared();
+                let mut grad = self.pos[id1] - self.pos[id0];
+                let dist_sq = grad.length_squared();
                 if dist_sq > thickness_sq || dist_sq == 0.0 {
                     continue;
                 }
@@ -306,25 +302,20 @@ impl Cloth {
 
                 // position correction
                 let dist = dist_sq.sqrt();
-                self.grad *= (min_dist - dist) / dist;
-                self.pos[id0] += self.grad * -0.5;
-                self.pos[id1] += self.grad * 0.5;
+                grad *= (min_dist - dist) / dist;
+                self.pos[id0] += grad * -0.5;
+                self.pos[id1] += grad * 0.5;
 
-                // velocities
-                self.grad = self.pos[id0] - self.prev[id0];
-                self.grad1 = self.pos[id1] - self.prev[id1];
-
-                // average velocity
-                self.grad2 = (self.grad + self.grad1) * 0.5;
-
+                // friction
+                let mut v0 = self.pos[id0] - self.prev[id0];
+                let mut v1 = self.pos[id1] - self.prev[id1];
+                let v_avg = (v0 + v1) / 2.0;
                 // velocity correction
-                self.grad = self.grad2 - self.grad;
-                self.grad1 = self.grad2 - self.grad1;
-
+                v0 = v_avg - v0;
+                v1 = v_avg - v1;
                 // add corrections
-                let friction = 0.0;
-                self.pos[id0] += self.grad * friction;
-                self.pos[id1] += self.grad1 * friction;
+                self.pos[id0] += v0 * self.friction;
+                self.pos[id1] += v1 * self.friction;
             }
         }
     }

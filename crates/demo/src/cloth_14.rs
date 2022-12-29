@@ -11,8 +11,12 @@ pub struct ClothSimulation {
 #[wasm_bindgen]
 impl ClothSimulation {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<ClothSimulation, JsValue> {
-        let cloth = Cloth::new();
+    pub fn new(
+        num_substeps: usize,
+        bending_compliance: f32,
+        stretching_compliance: f32,
+    ) -> Result<ClothSimulation, JsValue> {
+        let cloth = Cloth::new(num_substeps, bending_compliance, stretching_compliance);
         Ok(Self { cloth })
     }
 

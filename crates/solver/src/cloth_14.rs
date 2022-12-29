@@ -2,15 +2,14 @@ use std::cmp::Ordering;
 
 use glam::{vec3, Vec3};
 
-use crate::mesh;
+use crate::mesh::{self, MeshData};
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
-pub const TIME_STEP: f32 = 1.0 / 60.0;
-pub const DEFAULT_NUM_SOLVER_SUBSTEPS: usize = 15;
-pub const DEFAULT_BENDING_COMPLIANCE: f32 = 1.0;
-pub const DEFAULT_STRETCHING_COMPLIANCE: f32 = 0.0;
+const TIME_STEP: f32 = 1.0 / 60.0;
 
 pub struct Cloth {
+    mesh: MeshData,
+
     pub num_particles: usize,
     num_substeps: usize,
     pub dt: f32,
@@ -34,9 +33,6 @@ pub struct Cloth {
 
     pub bending_compliance: f32,
     pub stretching_compliance: f32,
-
-    // for use as temp variable
-    grad: Vec3,
 }
 
 struct Edge {
@@ -91,7 +87,7 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
 }
 
 impl Cloth {
-    pub fn new() -> Self {
+    pub fn new(num_substeps: usize, bending_compliance: f32, stretching_compliance: f32) -> Self {
         let mesh = mesh::get_cloth();
         let num_particles = mesh.vertices.len();
         let pos = mesh.vertices.clone();
@@ -122,10 +118,10 @@ impl Cloth {
             }
         }
 
-        let dt = TIME_STEP / DEFAULT_NUM_SOLVER_SUBSTEPS as f32;
+        let dt = TIME_STEP / num_substeps as f32;
         let mut cloth = Self {
             num_particles,
-            num_substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
+            num_substeps,
             dt,
             inv_dt: 1.0 / dt,
             edge_ids: edge_ids.clone(),
@@ -143,18 +139,17 @@ impl Cloth {
             stretching_ids: edge_ids,
             bending_ids: tri_pair_ids,
 
-            stretching_compliance: DEFAULT_STRETCHING_COMPLIANCE,
-            bending_compliance: DEFAULT_BENDING_COMPLIANCE,
+            stretching_compliance,
+            bending_compliance,
 
-            grad: Vec3::ZERO,
+            mesh,
         };
-        cloth.init(&mesh.tri_ids);
+        cloth.init();
         cloth
     }
 
     pub fn reset(&mut self) {
-        let mesh = mesh::get_cloth();
-        self.pos.copy_from_slice(&mesh.vertices);
+        self.pos.copy_from_slice(&self.mesh.vertices);
         self.prev.copy_from_slice(&self.pos);
         self.vel.fill(Vec3::ZERO);
     }
@@ -165,7 +160,8 @@ impl Cloth {
         self.inv_dt = 1.0 / self.dt;
     }
 
-    fn init(&mut self, tri_ids: &Vec<[usize; 3]>) {
+    fn init(&mut self) {
+        let tri_ids = &self.tri_ids;
         self.inv_mass = vec![0.0; self.num_particles];
         let num_tris = tri_ids.len();
         let mut e0;
@@ -258,17 +254,17 @@ impl Cloth {
                 continue;
             }
 
-            self.grad = self.pos[id0] - self.pos[id1];
-            let len = self.grad.length();
+            let mut grad = self.pos[id0] - self.pos[id1];
+            let len = grad.length();
             if len == 0.0 {
                 continue;
             }
-            self.grad /= len;
+            grad /= len;
             let rest_len = self.stretching_lengths[i];
             let c = len - rest_len;
             let s = -c / (w + alpha);
-            self.pos[id0] += self.grad * s * w0;
-            self.pos[id1] += self.grad * -s * w1;
+            self.pos[id0] += grad * s * w0;
+            self.pos[id1] += grad * -s * w1;
         }
     }
 
@@ -284,17 +280,17 @@ impl Cloth {
                 continue;
             }
 
-            self.grad = self.pos[id0] - self.pos[id1];
-            let len = self.grad.length();
+            let mut grad = self.pos[id0] - self.pos[id1];
+            let len = grad.length();
             if len == 0.0 {
                 continue;
             }
-            self.grad /= len;
+            grad /= len;
             let rest_len = self.bending_lengths[i];
             let c = len - rest_len;
             let s = -c / (w + alpha);
-            self.pos[id0] += self.grad * s * w0;
-            self.pos[id1] += self.grad * -s * w1;
+            self.pos[id0] += grad * s * w0;
+            self.pos[id1] += grad * -s * w1;
         }
     }
 

@@ -1,40 +1,43 @@
 import GUI from 'lil-gui';
 import * as THREE from 'three';
 
-import { SoftBodiesSimulation } from '../pkg';
+import { SkinnedSoftbodySimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene, SceneConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
-const DEFAULT_EDGE_COMPLIANCE = 100.0;
+const DEFAULT_EDGE_COMPLIANCE = 0.0;
 const DEFAULT_VOL_COMPLIANCE = 0.0;
 
-type SoftBodiesDemoProps = {
+type SkinnedSoftbodyDemoProps = {
     tets: number;
+    tris: number;
+    vertices: number;
     animate: boolean;
     substeps: number;
     volumeCompliance: number;
     edgeCompliance: number;
-    squash: () => void;
-    addBody: () => void;
+    showTets: boolean;
 };
 
-const SoftBodiesDemoConfig: SceneConfig = {
-    cameraYZ: [1, 2],
+const SkinnedSoftbodyDemoConfig: SceneConfig = {
+    cameraYZ: [1.5, 3],
     cameraLookAt: new THREE.Vector3(0, 0, 0),
 }
 
-class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> {
-    sim: SoftBodiesSimulation;
+class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoftbodyDemoProps> {
+    sim: SkinnedSoftbodySimulation;
     scene: Scene;
-    props: SoftBodiesDemoProps;
+    props: SkinnedSoftbodyDemoProps;
 
     private grabber: Grabber;
+    private tetMesh: THREE.LineSegments;
     private surfaceMesh: THREE.Mesh;
-    private positions: Float32Array;
+    private tetPositions: Float32Array;
+    private surfacePositions: Float32Array;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
-        this.sim = new rust_wasm.SoftBodiesSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
+        this.sim = new rust_wasm.SkinnedSoftbodySimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
     }
@@ -59,26 +62,31 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
             tets: this.sim.num_tets(),
+            tris: this.sim.num_tris(),
+            vertices: this.sim.num_surface_verts(),
             animate: true,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
             volumeCompliance: DEFAULT_VOL_COMPLIANCE,
             edgeCompliance: DEFAULT_EDGE_COMPLIANCE,
-            squash: () => { },
-            addBody: () => { },
+            showTets: false,
         };
         folder.add(this.props, 'tets').disable();
+        folder.add(this.props, 'tris').disable();
+        folder.add(this.props, 'vertices').disable();
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
-        folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_volume_compliance(v));
-        folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_edge_compliance(v));
+        folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(250).step(2.5).onChange((v: number) => this.sim.set_volume_compliance(v));
+        folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(100).step(1).onChange((v: number) => this.sim.set_edge_compliance(v));
+        folder.add(this.props, 'showTets').name('show tets').onChange((s: boolean) => {
+            this.tetMesh.visible = s;
+        });
         const animateController = folder.add(this.props, 'animate');
-        folder.add(this.props, 'squash');
-        folder.add(this.props, 'addBody').name('add body');
 
         // grab handler
         this.grabber = new Grabber(this.sim, canvas, this.scene, this.props, animateController);
     }
 
     private initMesh() {
+        const tet_edge_ids = Array.from(this.sim.tet_edge_ids());
         const surface_tri_ids = Array.from(this.sim.surface_tri_ids());
 
         // NOTE: ordering matters here. The sim.mesh_*() getter methods are lazily implemented and 
@@ -87,15 +95,25 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
         // store the pointer to the positions buffer location after these allocs. In the WASM
         // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
         // forward.
-        const positionsPtr = this.sim.particle_positions_ptr();
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles() * 3);
+        const tetPositionsPtr = this.sim.particle_positions_ptr();
+        this.tetPositions = new Float32Array(memory.buffer, tetPositionsPtr, this.sim.num_particles() * 3);
+        const surfacePositionsPtr = this.sim.surface_positions_ptr();
+        this.surfacePositions = new Float32Array(memory.buffer, surfacePositionsPtr, this.sim.num_surface_verts() * 3);
+
+        // visual tet mesh
+        let geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(this.tetPositions, 3));
+        geometry.setIndex(tet_edge_ids);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+        this.tetMesh = new THREE.LineSegments(geometry, lineMaterial);
+        this.tetMesh.visible = false;
+        this.scene.scene.add(this.tetMesh);
 
         // visual tri mesh
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+        geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(this.surfacePositions, 3));
         geometry.setIndex(surface_tri_ids);
-        const visMaterial = new THREE.MeshPhongMaterial({ color: 0xF02000, side: THREE.DoubleSide });
-        visMaterial.flatShading = true;
+        const visMaterial = new THREE.MeshPhongMaterial({ color: 0xf78a1d });
         this.surfaceMesh = new THREE.Mesh(geometry, visMaterial);
         this.surfaceMesh.castShadow = true;
         this.surfaceMesh.layers.enable(1);
@@ -106,10 +124,11 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     }
 
     private updateMesh() {
+        this.tetMesh.geometry.attributes.position.needsUpdate = true;
         this.surfaceMesh.geometry.computeVertexNormals();
         this.surfaceMesh.geometry.attributes.position.needsUpdate = true;
         this.surfaceMesh.geometry.computeBoundingSphere();
     }
 }
 
-export { SoftBodiesDemo, SoftBodiesDemoConfig };
+export { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig };

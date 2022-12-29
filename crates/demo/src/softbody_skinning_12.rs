@@ -1,41 +1,47 @@
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 
-use solver::softbodies_10::*;
+use solver::softbody_skinning_12::*;
 
 #[wasm_bindgen]
-pub struct SoftBodiesSimulation {
-    body: SoftBody,
+pub struct SkinnedSoftbodySimulation {
+    body: SkinnedSoftbody,
 }
 
 #[wasm_bindgen]
-impl SoftBodiesSimulation {
+impl SkinnedSoftbodySimulation {
     #[wasm_bindgen(constructor)]
     pub fn new(
         num_substeps: usize,
         edge_compliance: f32,
         vol_compliance: f32,
-    ) -> Result<SoftBodiesSimulation, JsValue> {
-        let body = SoftBody::new(num_substeps, edge_compliance, vol_compliance);
+    ) -> Result<SkinnedSoftbodySimulation, JsValue> {
+        let body = SkinnedSoftbody::new(num_substeps, edge_compliance, vol_compliance);
         Ok(Self { body })
     }
 
     #[wasm_bindgen]
     pub fn reset(&mut self) {
-        //self.bodies.clear();
-        // LVSTODO add one body
+        self.body.reset();
     }
 
     #[wasm_bindgen]
     pub fn num_particles(&self) -> usize {
         self.body.num_particles
-        //self.bodies.iter().map(|b| b.num_particles).sum()
+    }
+
+    #[wasm_bindgen]
+    pub fn num_surface_verts(&self) -> usize {
+        self.body.num_surface_verts
     }
 
     #[wasm_bindgen]
     pub fn num_tets(&self) -> usize {
         self.body.num_tets
-        //self.bodies.iter().map(|b| b.num_tets).sum()
+    }
+
+    pub fn num_tris(&self) -> usize {
+        self.body.num_tris
     }
 
     #[wasm_bindgen]
@@ -69,6 +75,12 @@ impl SoftBodiesSimulation {
     }
 
     #[wasm_bindgen]
+    pub fn surface_positions_ptr(&self) -> *const Vec3 {
+        // See `self.particle_positions_ptr` for comment on safety
+        self.body.surface_pos.as_ptr()
+    }
+
+    #[wasm_bindgen]
     pub fn set_solver_substeps(&mut self, num_substeps: usize) {
         self.body.set_solver_substeps(num_substeps);
     }
@@ -81,6 +93,13 @@ impl SoftBodiesSimulation {
     #[wasm_bindgen]
     pub fn set_volume_compliance(&mut self, compliance: f32) {
         self.body.vol_compliance = compliance;
+    }
+
+    // We can copy since we are not performance sensitive for these two methods
+    #[wasm_bindgen]
+    pub fn tet_edge_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.body.edge_ids.clone()
     }
 
     #[wasm_bindgen]

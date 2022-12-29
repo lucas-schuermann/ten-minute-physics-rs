@@ -1,22 +1,30 @@
-use glam::{vec3, Vec3};
+use glam::{vec3, Mat3, Vec3};
 
-use crate::mesh::{self, TetMeshData};
+use crate::{
+    hashing_11::Hash,
+    mesh::{self, SkinnedTetMeshData},
+};
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
+const SPACING: f32 = 0.05;
 const VOL_ID_ORDER: [[usize; 3]; 4] = [[1, 3, 2], [0, 2, 3], [0, 3, 1], [0, 1, 2]];
 
-pub struct SoftBody {
+pub struct SkinnedSoftbody {
     pub num_particles: usize,
+    pub num_tris: usize,
     pub num_tets: usize,
+    pub num_surface_verts: usize,
     num_substeps: usize,
     pub dt: f32,
     inv_dt: f32,
 
     pub tet_ids: Vec<[usize; 4]>,
     pub edge_ids: Vec<usize>,
+    pub skinning_info: Vec<Option<(usize, [f32; 3])>>,
 
     pub pos: Vec<Vec3>,
+    pub surface_pos: Vec<Vec3>,
     prev: Vec<Vec3>,
     vel: Vec<Vec3>,
     inv_mass: Vec<f32>,
@@ -29,39 +37,42 @@ pub struct SoftBody {
     pub edge_compliance: f32,
     pub vol_compliance: f32,
 
-    // stored for reset
-    mesh: TetMeshData,
+    mesh: SkinnedTetMeshData,
 }
 
-impl SoftBody {
+impl SkinnedSoftbody {
     pub fn new(num_substeps: usize, edge_compliance: f32, vol_compliance: f32) -> Self {
-        let mesh = mesh::get_bunny();
-        let num_particles = mesh.vertices.len();
+        let mesh = mesh::get_dragon();
+        let num_particles = mesh.tet_vertices.len();
         let num_tets = mesh.tet_ids.len();
-        let num_edges = mesh.tet_edge_ids.len();
+        let num_surface_verts = mesh.surface_vertices.len();
         let dt = TIME_STEP / num_substeps as f32;
         let mut body = Self {
             num_particles,
+            num_tris: mesh.surface_tri_ids.len() / 3,
             num_tets,
-            num_substeps: num_substeps,
+            num_surface_verts,
+            num_substeps,
             dt,
             inv_dt: 1.0 / dt,
 
             edge_ids: mesh.tet_edge_ids.clone(),
             tet_ids: mesh.tet_ids.clone(),
+            skinning_info: vec![None; num_surface_verts],
 
-            pos: mesh.vertices.clone(),
-            prev: mesh.vertices.clone(),
+            pos: mesh.tet_vertices.clone(),
+            surface_pos: mesh.surface_vertices.clone(),
+            prev: mesh.tet_vertices.clone(),
             vel: vec![Vec3::ZERO; num_particles],
             inv_mass: vec![0.0; num_particles],
             rest_vol: vec![0.0; num_tets],
-            edge_lens: vec![0.0; num_edges / 2],
+            edge_lens: vec![0.0; mesh.tet_edge_ids.len() / 2],
 
             grab_inv_mass: 0.0,
             grab_id: None,
 
-            edge_compliance: edge_compliance,
-            vol_compliance: vol_compliance,
+            edge_compliance,
+            vol_compliance,
 
             mesh,
         };
@@ -70,13 +81,94 @@ impl SoftBody {
     }
 
     pub fn surface_tri_ids(&self) -> Vec<usize> {
-        self.mesh.tet_surface_tri_ids.clone()
+        self.mesh.surface_tri_ids.clone()
     }
 
     pub fn set_solver_substeps(&mut self, num_substeps: usize) {
         self.num_substeps = num_substeps;
         self.dt = TIME_STEP / num_substeps as f32;
         self.inv_dt = 1.0 / self.dt;
+    }
+
+    fn compute_skinning_info(&mut self) {
+        // create a hash for all vertices of the surface (visual) mesh
+        let mut hash = Hash::new(SPACING, self.num_surface_verts);
+        hash.create(&self.surface_pos);
+        let mut min_dist = vec![f32::MAX; self.num_surface_verts];
+        let border = 0.05; // LVSTODO to const
+
+        let mut tet_center;
+        let mut mat;
+        let mut bary;
+
+        for i in 0..self.num_tets {
+            tet_center = Vec3::ZERO;
+            for j in 0..4 {
+                tet_center += self.pos[self.tet_ids[i][j]] / 4.0;
+            }
+
+            let mut rmax: f32 = 0.0;
+            for j in 0..4 {
+                let r = tet_center.distance(self.pos[self.tet_ids[i][j]]);
+                rmax = rmax.max(r);
+            }
+            rmax += border;
+
+            hash.query(&tet_center, rmax);
+            if hash.query_size == 0 {
+                continue;
+            }
+
+            let tet = self.tet_ids[i];
+            let id0 = tet[0];
+            let id1 = tet[1];
+            let id2 = tet[2];
+            let id3 = tet[3];
+
+            mat = Mat3::from_cols(
+                self.pos[id0] - self.pos[id3],
+                self.pos[id1] - self.pos[id3],
+                self.pos[id2] - self.pos[id3],
+            );
+            mat = mat.inverse();
+
+            for j in 0..hash.query_size {
+                let id = hash.query_ids[j];
+
+                // we already have skinning info
+                if min_dist[id] <= 0.0 {
+                    continue;
+                }
+
+                if self.surface_pos[id].distance_squared(tet_center) > rmax * rmax {
+                    continue;
+                }
+
+                // compute barycentric coords for candidate
+                bary = self.surface_pos[id] - self.pos[id3];
+                bary = mat * bary;
+                let bary3 = 1.0 - bary[0] - bary[1] - bary[2];
+
+                let mut dist: f32 = 0.0;
+                for k in 0..3 {
+                    dist = dist.max(-bary[k]);
+                }
+                dist = dist.max(-bary3);
+
+                if dist < min_dist[id] {
+                    min_dist[id] = dist;
+                    self.skinning_info[id] = Some((i, [bary[0], bary[1], bary[2]]));
+                }
+            }
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.pos.copy_from_slice(&self.mesh.tet_vertices);
+        self.surface_pos
+            .copy_from_slice(&self.mesh.surface_vertices);
+        self.prev.copy_from_slice(&self.pos);
+        self.vel.fill(Vec3::ZERO);
     }
 
     fn init(&mut self) {
@@ -95,6 +187,8 @@ impl SoftBody {
             let id1 = self.edge_ids[2 * i + 1];
             self.edge_lens[i] = self.pos[id0].distance(self.pos[id1]);
         }
+
+        self.compute_skinning_info();
     }
 
     fn pre_solve(&mut self) {
@@ -188,6 +282,28 @@ impl SoftBody {
             self.pre_solve();
             self.solve();
             self.post_solve();
+        }
+
+        self.update_surface();
+    }
+
+    fn update_surface(&mut self) {
+        for i in 0..self.num_surface_verts {
+            if self.skinning_info[i] == None {
+                continue;
+            }
+            let (tetid, [b0, b1, b2]) = self.skinning_info[i].unwrap(); // LVSTODO
+            let b3 = 1.0 - b0 - b1 - b2;
+            let tet = self.tet_ids[tetid];
+            let id0 = tet[0];
+            let id1 = tet[1];
+            let id2 = tet[2];
+            let id3 = tet[3];
+            self.surface_pos[i] = Vec3::ZERO;
+            self.surface_pos[i] += self.pos[id0] * b0;
+            self.surface_pos[i] += self.pos[id1] * b1;
+            self.surface_pos[i] += self.pos[id2] * b2;
+            self.surface_pos[i] += self.pos[id3] * b3;
         }
     }
 
