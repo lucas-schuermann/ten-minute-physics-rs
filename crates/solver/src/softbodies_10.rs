@@ -204,6 +204,19 @@ impl SoftBody {
         temp3.dot(temp2) / 6.0
     }
 
+    pub fn squash(&mut self) {
+        for i in 0..self.num_particles {
+            self.pos[i].y = 0.5;
+        }
+    }
+
+    pub fn translate(&mut self, displacement: Vec3) {
+        for i in 0..self.num_particles {
+            self.pos[i] += displacement;
+            self.prev[i] += displacement;
+        }
+    }
+
     pub fn start_grab(&mut self, pos: &Vec3) {
         let mut min_d2 = f32::MAX;
         self.grab_id = None;

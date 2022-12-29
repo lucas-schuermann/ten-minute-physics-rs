@@ -1,4 +1,4 @@
-import GUI from 'lil-gui';
+import GUI, { Controller } from 'lil-gui';
 import * as THREE from 'three';
 
 import { SoftBodiesSimulation } from '../pkg';
@@ -29,13 +29,14 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     scene: Scene;
     props: SoftBodiesDemoProps;
 
+    private tetsController: Controller;
     private grabber: Grabber;
-    private surfaceMesh: THREE.Mesh;
-    private positions: Float32Array;
+    private surfaceMeshes: THREE.Mesh[];
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
         this.sim = new rust_wasm.SoftBodiesSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
         this.scene = scene;
+        this.surfaceMeshes = [];
         this.initControls(folder, canvas);
     }
 
@@ -46,69 +47,95 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     update() {
         if (this.props.animate) {
             this.sim.step();
-            this.updateMesh();
+            this.updateMeshes();
             this.grabber.increaseTime(this.sim.dt());
         }
     }
 
     reset() {
         this.sim.reset();
-        this.updateMesh();
+        this.surfaceMeshes.forEach(mesh => {
+            this.scene.scene.remove(mesh);
+        });
+        this.surfaceMeshes = [];
+        this.initMesh();
     }
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
+        let animateController: Controller;
         this.props = {
             tets: this.sim.num_tets(),
             animate: true,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
             volumeCompliance: DEFAULT_VOL_COMPLIANCE,
             edgeCompliance: DEFAULT_EDGE_COMPLIANCE,
-            squash: () => { },
-            addBody: () => { },
+            squash: () => {
+                this.sim.squash();
+                this.props.animate = false;
+                animateController.updateDisplay();
+                this.updateMeshes();
+            },
+            addBody: () => {
+                this.sim.add_body();
+                this.initMesh();
+            },
         };
-        folder.add(this.props, 'tets').disable();
+        this.tetsController = folder.add(this.props, 'tets').disable();
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
         folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_volume_compliance(v));
         folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_edge_compliance(v));
-        const animateController = folder.add(this.props, 'animate');
+        animateController = folder.add(this.props, 'animate');
         folder.add(this.props, 'squash');
         folder.add(this.props, 'addBody').name('add body');
 
-        // grab handler
+        // grab interaction handler
         this.grabber = new Grabber(this.sim, canvas, this.scene, this.props, animateController);
     }
 
     private initMesh() {
         const surface_tri_ids = Array.from(this.sim.surface_tri_ids());
+        const id = this.surfaceMeshes.length;
 
-        // NOTE: ordering matters here. The sim.mesh_*() getter methods are lazily implemented and 
-        // allocate into a new Vec to collect results into at runtime. This means a heap allocation
-        // occurs and therefore the location in memory for particle positions changes. Here, we
-        // store the pointer to the positions buffer location after these allocs. In the WASM
-        // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
-        // forward.
-        const positionsPtr = this.sim.particle_positions_ptr();
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles() * 3);
+        // NOTE: since additional bodies can be created in this demo, we do not rely on the `positionsPtr` to
+        // be a constant offset in the WASM linear heap. The position geometry attribute is rewritten each
+        // step in `updateMesh` to point to the refeteched `particle_positions_ptr(id)`. There are probably
+        // more efficient ways to do this, but a simple implementation works for this demo.
+        const positionsPtr = this.sim.particle_positions_ptr(id);
+        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body() * 3);
 
         // visual tri mesh
         const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setIndex(surface_tri_ids);
         const visMaterial = new THREE.MeshPhongMaterial({ color: 0xF02000, side: THREE.DoubleSide });
         visMaterial.flatShading = true;
-        this.surfaceMesh = new THREE.Mesh(geometry, visMaterial);
-        this.surfaceMesh.castShadow = true;
-        this.surfaceMesh.layers.enable(1);
-        this.scene.scene.add(this.surfaceMesh);
+        const surfaceMesh = new THREE.Mesh(geometry, visMaterial);
+        surfaceMesh.castShadow = true;
+        surfaceMesh.layers.enable(1);
+        surfaceMesh.userData = { 'id': id }; // for raycasting
+        this.scene.scene.add(surfaceMesh);
+        this.surfaceMeshes.push(surfaceMesh);
         geometry.computeVertexNormals();
 
-        this.updateMesh();
+        this.props.tets = this.sim.num_tets();
+        this.tetsController.updateDisplay();
+
+        this.updateMesh(id);
     }
 
-    private updateMesh() {
-        this.surfaceMesh.geometry.computeVertexNormals();
-        this.surfaceMesh.geometry.attributes.position.needsUpdate = true;
-        this.surfaceMesh.geometry.computeBoundingSphere();
+    private updateMesh(id: number) {
+        const positionsPtr = this.sim.particle_positions_ptr(id);
+        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body() * 3);
+        this.surfaceMeshes[id].geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        this.surfaceMeshes[id].geometry.computeVertexNormals();
+        this.surfaceMeshes[id].geometry.attributes.position.needsUpdate = true;
+        this.surfaceMeshes[id].geometry.computeBoundingSphere();
+    }
+
+    private updateMeshes() {
+        for (let id = 0; id < this.surfaceMeshes.length; id++) {
+            this.updateMesh(id);
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-import GUI from 'lil-gui';
+import GUI, { Controller } from 'lil-gui';
 import * as THREE from 'three';
 
 import { SkinnedSoftbodySimulation } from '../pkg';
@@ -18,6 +18,7 @@ type SkinnedSoftbodyDemoProps = {
     volumeCompliance: number;
     edgeCompliance: number;
     showTets: boolean;
+    squash: () => void;
 };
 
 const SkinnedSoftbodyDemoConfig: SceneConfig = {
@@ -60,6 +61,7 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     }
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
+        let animateController: Controller;
         this.props = {
             tets: this.sim.num_tets(),
             tris: this.sim.num_tris(),
@@ -69,6 +71,12 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
             volumeCompliance: DEFAULT_VOL_COMPLIANCE,
             edgeCompliance: DEFAULT_EDGE_COMPLIANCE,
             showTets: false,
+            squash: () => {
+                this.sim.squash();
+                this.props.animate = false;
+                animateController.updateDisplay();
+                this.updateMesh();
+            },
         };
         folder.add(this.props, 'tets').disable();
         folder.add(this.props, 'tris').disable();
@@ -79,9 +87,10 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         folder.add(this.props, 'showTets').name('show tets').onChange((s: boolean) => {
             this.tetMesh.visible = s;
         });
-        const animateController = folder.add(this.props, 'animate');
+        animateController = folder.add(this.props, 'animate');
+        folder.add(this.props, 'squash');
 
-        // grab handler
+        // grab interaction handler
         this.grabber = new Grabber(this.sim, canvas, this.scene, this.props, animateController);
     }
 
@@ -89,9 +98,9 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         const tet_edge_ids = Array.from(this.sim.tet_edge_ids());
         const surface_tri_ids = Array.from(this.sim.surface_tri_ids());
 
-        // NOTE: ordering matters here. The sim.mesh_*() getter methods are lazily implemented and 
+        // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
-        // occurs and therefore the location in memory for particle positions changes. Here, we
+        // occurs and therefore the location in memory for particle positions could change. Here, we
         // store the pointer to the positions buffer location after these allocs. In the WASM
         // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
         // forward.

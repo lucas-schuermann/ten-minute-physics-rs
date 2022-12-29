@@ -93,6 +93,10 @@ impl Cloth {
             dt,
             inv_dt: 1.0 / dt,
             max_vel: VEL_LIMIT_MULTIPLIER * THICKNESS / dt,
+
+            edge_ids,
+            tri_ids,
+
             pos: vec![Vec3::ZERO; num_particles],
             prev: vec![Vec3::ZERO; num_particles],
             rest_pos: vec![Vec3::ZERO; num_particles],
@@ -101,16 +105,16 @@ impl Cloth {
             thickness: THICKNESS,
             handle_collisions: true,
             hash: Hash::new(SPACING, num_particles),
-            grab_id: None,
+
             grab_inv_mass: 0.0,
+            grab_id: None,
+
+            num_constraints: 0,
             constraints: vec![Constraint::default(); num_particles * NUM_CONSTRAINTS_PER_PARTICLE],
             stretch_compliance,
             shear_compliance,
             bending_compliance,
             friction,
-            edge_ids,
-            tri_ids,
-            num_constraints: 0,
         };
         cloth.init();
         cloth

@@ -125,23 +125,22 @@ import('./pkg').then(rust_wasm => {
     // populate controls window
     const gui = new GUI({ autoPlace: false });
     gui.domElement.style.opacity = '0.9';
+    $('gui').appendChild(gui.domElement);
     let props = {
         demoSelection: demoNames[0],
         reset: () => demo.reset(),
     }
-    const folder = gui.addFolder('General');
-    $('gui').appendChild(gui.domElement);
+    const generalFolder = gui.addFolder('General');
     let demoFolder: GUI;
     const initDemo = (s: string) => {
-        // initialize renderer
         if (demoFolder) demoFolder.destroy();
         demoFolder = gui.addFolder('Demo Settings');
         scene = initThreeScene(demos[s].config);
         demo = new demos[s].demo(rust_wasm, canvas, scene, demoFolder);
         demo.init();
     }
-    folder.add(props, 'demoSelection', demoNames).name('select demo').onFinishChange(initDemo);
-    folder.add(props, 'reset').name('reset simulation');
+    generalFolder.add(props, 'demoSelection', demoNames).name('select demo').onFinishChange(initDemo);
+    generalFolder.add(props, 'reset').name('reset simulation');
 
     // default init
     initDemo(demoNames[0]);

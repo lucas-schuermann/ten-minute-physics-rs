@@ -26,6 +26,11 @@ impl SkinnedSoftbodySimulation {
     }
 
     #[wasm_bindgen]
+    pub fn squash(&mut self) {
+        self.body.squash();
+    }
+
+    #[wasm_bindgen]
     pub fn num_particles(&self) -> usize {
         self.body.num_particles
     }
@@ -50,17 +55,17 @@ impl SkinnedSoftbodySimulation {
     }
 
     #[wasm_bindgen]
-    pub fn start_grab(&mut self, pos: &[f32]) {
+    pub fn start_grab(&mut self, _: usize, pos: &[f32]) {
         self.body.start_grab(&Vec3::from_slice(pos));
     }
 
     #[wasm_bindgen]
-    pub fn move_grabbed(&mut self, pos: &[f32]) {
+    pub fn move_grabbed(&mut self, _: usize, pos: &[f32]) {
         self.body.move_grabbed(&Vec3::from_slice(pos));
     }
 
     #[wasm_bindgen]
-    pub fn end_grab(&mut self, vel: &[f32]) {
+    pub fn end_grab(&mut self, _: usize, vel: &[f32]) {
         self.body.end_grab(&Vec3::from_slice(vel));
     }
 

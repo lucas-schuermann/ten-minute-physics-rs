@@ -58,17 +58,17 @@ impl SelfCollisionSimulation {
     }
 
     #[wasm_bindgen]
-    pub fn start_grab(&mut self, pos: &[f32]) {
+    pub fn start_grab(&mut self, _: usize, pos: &[f32]) {
         self.cloth.start_grab(&Vec3::from_slice(pos));
     }
 
     #[wasm_bindgen]
-    pub fn move_grabbed(&mut self, pos: &[f32]) {
+    pub fn move_grabbed(&mut self, _: usize, pos: &[f32]) {
         self.cloth.move_grabbed(&Vec3::from_slice(pos));
     }
 
     #[wasm_bindgen]
-    pub fn end_grab(&mut self, vel: &[f32]) {
+    pub fn end_grab(&mut self, _: usize, vel: &[f32]) {
         self.cloth.end_grab(&Vec3::from_slice(vel));
     }
 

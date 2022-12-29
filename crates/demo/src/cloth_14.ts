@@ -78,7 +78,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         });
         const animateController = folder.add(this.props, 'animate');
 
-        // grab handler
+        // grab interaction handler
         this.grabber = new Grabber(this.sim, canvas, this.scene, this.props, animateController);
     }
 
@@ -86,9 +86,9 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         const tri_ids = Array.from(this.sim.mesh_tri_ids());
         const edge_ids = Array.from(this.sim.mesh_edge_ids());
 
-        // NOTE: ordering matters here. The sim.mesh_*() getter methods are lazily implemented and 
+        // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
-        // occurs and therefore the location in memory for particle positions changes. Here, we
+        // occurs and therefore the location in memory for particle positions could change. Here, we
         // store the pointer to the positions buffer location after these allocs. In the WASM
         // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
         // forward.

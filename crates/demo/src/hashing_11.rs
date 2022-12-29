@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 use solver::hashing_11::Hash;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
-pub const RADIUS: f32 = 0.025;
+const RADIUS: f32 = 0.025;
 const MIN_DIST: f32 = 2.0 * RADIUS;
 const MIN_DIST_SQ: f32 = MIN_DIST * MIN_DIST;
 const SPACING: f32 = 3.0 * RADIUS;

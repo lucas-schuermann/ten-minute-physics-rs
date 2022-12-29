@@ -21,7 +21,7 @@ pub struct SkinnedSoftbody {
 
     pub tet_ids: Vec<[usize; 4]>,
     pub edge_ids: Vec<usize>,
-    pub skinning_info: Vec<Option<(usize, [f32; 3])>>,
+    skinning_info: Vec<Option<(usize, [f32; 3])>>,
 
     pub pos: Vec<Vec3>,
     pub surface_pos: Vec<Vec3>,
@@ -37,6 +37,7 @@ pub struct SkinnedSoftbody {
     pub edge_compliance: f32,
     pub vol_compliance: f32,
 
+    // stored for reset
     mesh: SkinnedTetMeshData,
 }
 
@@ -95,7 +96,6 @@ impl SkinnedSoftbody {
         let mut hash = Hash::new(SPACING, self.num_surface_verts);
         hash.create(&self.surface_pos);
         let mut min_dist = vec![f32::MAX; self.num_surface_verts];
-        let border = 0.05; // LVSTODO to const
 
         let mut tet_center;
         let mut mat;
@@ -112,7 +112,7 @@ impl SkinnedSoftbody {
                 let r = tet_center.distance(self.pos[self.tet_ids[i][j]]);
                 rmax = rmax.max(r);
             }
-            rmax += border;
+            rmax += SPACING;
 
             hash.query(&tet_center, rmax);
             if hash.query_size == 0 {
@@ -318,6 +318,13 @@ impl SkinnedSoftbody {
         let temp2 = self.pos[id3] - self.pos[id0];
         let temp3 = temp0.cross(temp1);
         temp3.dot(temp2) / 6.0
+    }
+
+    pub fn squash(&mut self) {
+        for i in 0..self.num_particles {
+            self.pos[i].y = 0.5;
+        }
+        self.update_surface();
     }
 
     pub fn start_grab(&mut self, pos: &Vec3) {

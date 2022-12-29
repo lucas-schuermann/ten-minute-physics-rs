@@ -8,8 +8,6 @@ const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 
 pub struct Cloth {
-    mesh: MeshData,
-
     pub num_particles: usize,
     num_substeps: usize,
     pub dt: f32,
@@ -33,6 +31,9 @@ pub struct Cloth {
 
     pub bending_compliance: f32,
     pub stretching_compliance: f32,
+
+    // stored for reset
+    mesh: MeshData,
 }
 
 struct Edge {
@@ -124,23 +125,25 @@ impl Cloth {
             num_substeps,
             dt,
             inv_dt: 1.0 / dt,
+
             edge_ids: edge_ids.clone(),
             tri_ids: mesh.tri_ids.clone(),
+
             pos,
             prev: mesh.vertices.clone(),
             vel: vec![Vec3::ZERO; num_particles],
             inv_mass: vec![0.0; num_particles],
 
+            stretching_ids: edge_ids.clone(),
+            bending_ids: tri_pair_ids.clone(),
+            stretching_lengths: vec![0.0; edge_ids.len()],
+            bending_lengths: vec![0.0; tri_pair_ids.len()],
+
             grab_inv_mass: 0.0,
             grab_id: None,
 
-            stretching_lengths: vec![0.0; edge_ids.len()],
-            bending_lengths: vec![0.0; tri_pair_ids.len()],
-            stretching_ids: edge_ids,
-            bending_ids: tri_pair_ids,
-
-            stretching_compliance,
             bending_compliance,
+            stretching_compliance,
 
             mesh,
         };

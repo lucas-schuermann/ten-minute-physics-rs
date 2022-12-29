@@ -25,9 +25,9 @@ type SceneConfig = {
 };
 
 type GrabberSim = {
-    start_grab(v: Float32Array): void;
-    move_grabbed(v: Float32Array): void;
-    end_grab(v: Float32Array): void;
+    start_grab(id: number, v: Float32Array): void;
+    move_grabbed(id: number, v: Float32Array): void;
+    end_grab(id: number, v: Float32Array): void;
 }
 
 type GrabberProps = {
@@ -42,7 +42,7 @@ class Grabber {
 
     mousePos: THREE.Vector2;
     mouseDown: boolean;
-    intersectedObject: boolean;
+    intersectedObjectId: null | number;
 
     private raycaster: THREE.Raycaster;
     private distance: number;
@@ -59,7 +59,7 @@ class Grabber {
         this.raycaster = new THREE.Raycaster();
         this.raycaster.layers.set(1);
         this.raycaster.params.Line.threshold = 0.1;
-        this.intersectedObject = false;
+        this.intersectedObjectId = null;
         this.distance = 0.0;
         this.mousePos = new THREE.Vector2();
         this.mouseDown = false;
@@ -73,7 +73,7 @@ class Grabber {
             if (e.type == "pointerdown") {
                 this.mouseDown = true;
                 this.start(e.clientX, e.clientY);
-                if (this.intersectedObject) {
+                if (this.intersectedObjectId !== null) {
                     this.scene.controls.saveState();
                     this.scene.controls.enabled = false;
                 }
@@ -82,7 +82,7 @@ class Grabber {
             } else if (e.type == "pointerup") {
                 this.mouseDown = false;
                 this.scene.controls.enabled = true;
-                if (this.intersectedObject) {
+                if (this.intersectedObjectId !== null) {
                     this.end();
                     this.scene.controls.reset();
                 }
@@ -101,17 +101,17 @@ class Grabber {
         this.raycaster.setFromCamera(this.mousePos, this.scene.camera);
     }
     start(x: number, y: number) {
-        this.intersectedObject = false;
+        this.intersectedObjectId = null;
         this.updateRaycaster(x, y);
         const intersects = this.raycaster.intersectObjects(this.scene.scene.children);
         if (intersects.length > 0) {
-            const obj = intersects[0].object.userData;
+            const obj = intersects[0].object;
             if (obj) {
-                this.intersectedObject = true;
+                this.intersectedObjectId = 'id' in obj.userData ? obj.userData.id : 0;
                 this.distance = intersects[0].distance;
                 let pos = this.raycaster.ray.origin.clone();
                 pos.addScaledVector(this.raycaster.ray.direction, this.distance);
-                this.sim.start_grab(pos.toArray() as unknown as Float32Array);
+                this.sim.start_grab(this.intersectedObjectId, pos.toArray() as unknown as Float32Array);
                 this.prevPos.copy(pos);
                 this.vel.set(0.0, 0.0, 0.0);
                 this.time = 0.0;
@@ -121,7 +121,7 @@ class Grabber {
         }
     }
     move(x: number, y: number) {
-        if (this.intersectedObject) {
+        if (this.intersectedObjectId !== null) {
             this.updateRaycaster(x, y);
             const pos = this.raycaster.ray.origin.clone();
             pos.addScaledVector(this.raycaster.ray.direction, this.distance);
@@ -136,13 +136,13 @@ class Grabber {
             this.prevPos.copy(pos);
             this.time = 0.0;
 
-            this.sim.move_grabbed(pos.toArray() as unknown as Float32Array); // LVSTODO types
+            this.sim.move_grabbed(this.intersectedObjectId, pos.toArray() as unknown as Float32Array); // LVSTODO types
         }
     }
     end() {
-        if (this.intersectedObject) {
-            this.sim.end_grab(this.vel.toArray() as unknown as Float32Array);
-            this.intersectedObject = false;
+        if (this.intersectedObjectId !== null) {
+            this.sim.end_grab(this.intersectedObjectId, this.vel.toArray() as unknown as Float32Array);
+            this.intersectedObjectId = null;
         }
     }
 }
