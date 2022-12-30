@@ -1,7 +1,7 @@
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 
-use solver::self_collision_15::*;
+use solver::self_collision_15::Cloth;
 
 #[wasm_bindgen]
 pub struct SelfCollisionSimulation {
@@ -18,7 +18,7 @@ impl SelfCollisionSimulation {
         stretch_compliance: f32,
         shear_compliance: f32,
         friction: f32,
-    ) -> Result<SelfCollisionSimulation, JsValue> {
+    ) -> SelfCollisionSimulation {
         let cloth = Cloth::new(
             num_substeps,
             bending_compliance,
@@ -26,10 +26,10 @@ impl SelfCollisionSimulation {
             shear_compliance,
             friction,
         );
-        Ok(Self {
+        Self {
             cloth,
             attach: false,
-        })
+        }
     }
 
     #[wasm_bindgen]
@@ -89,7 +89,7 @@ impl SelfCollisionSimulation {
 
     #[wasm_bindgen]
     pub fn set_handle_collisions(&mut self, handle_collisions: bool) {
-        self.cloth.handle_collisions = handle_collisions
+        self.cloth.handle_collisions = handle_collisions;
     }
 
     #[wasm_bindgen]
@@ -119,20 +119,14 @@ impl SelfCollisionSimulation {
         self.cloth
             .edge_ids
             .iter()
-            .map(|e| e.to_vec())
-            .flatten()
+            .flat_map(|e| e.to_vec())
             .collect()
     }
 
     #[wasm_bindgen]
     pub fn mesh_tri_ids(&self) -> Vec<usize> {
         // NOTE: this heap allocates for the return value!
-        self.cloth
-            .tri_ids
-            .iter()
-            .map(|e| e.to_vec())
-            .flatten()
-            .collect()
+        self.cloth.tri_ids.iter().flat_map(|e| e.to_vec()).collect()
     }
 
     #[wasm_bindgen]

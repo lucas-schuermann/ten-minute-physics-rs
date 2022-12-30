@@ -1,4 +1,8 @@
-#![allow(clippy::unreadable_literal)]
+#![allow(
+    clippy::unreadable_literal,
+    clippy::excessive_precision,
+    clippy::approx_constant
+)]
 
 use glam::Vec3;
 
@@ -22,6 +26,7 @@ pub struct SkinnedTetMeshData {
     pub tet_edge_ids: Vec<usize>,
 }
 
+#[must_use]
 fn parse_verts(verts_raw: &[f32]) -> Vec<Vec3> {
     let mut verts: Vec<Vec3> = Vec::with_capacity(verts_raw.len() / 3);
     for i in 0..(verts_raw.len() / 3) {
@@ -29,11 +34,12 @@ fn parse_verts(verts_raw: &[f32]) -> Vec<Vec3> {
             verts_raw[i * 3],
             verts_raw[i * 3 + 1],
             verts_raw[i * 3 + 2],
-        ))
+        ));
     }
     verts
 }
 
+#[must_use]
 fn parse_tri_ids(tri_ids_raw: &[usize]) -> Vec<[usize; 3]> {
     let mut tri_ids: Vec<[usize; 3]> = Vec::with_capacity(tri_ids_raw.len() / 3);
     for i in 0..(tri_ids_raw.len() / 3) {
@@ -41,11 +47,12 @@ fn parse_tri_ids(tri_ids_raw: &[usize]) -> Vec<[usize; 3]> {
             tri_ids_raw[i * 3],
             tri_ids_raw[i * 3 + 1],
             tri_ids_raw[i * 3 + 2],
-        ])
+        ]);
     }
     tri_ids
 }
 
+#[must_use]
 fn parse_tet_ids(tet_ids_raw: &[usize]) -> Vec<[usize; 4]> {
     let mut tet_ids: Vec<[usize; 4]> = Vec::with_capacity(tet_ids_raw.len() / 4);
     for i in 0..(tet_ids_raw.len() / 4) {
@@ -54,11 +61,12 @@ fn parse_tet_ids(tet_ids_raw: &[usize]) -> Vec<[usize; 4]> {
             tet_ids_raw[i * 4 + 1],
             tet_ids_raw[i * 4 + 2],
             tet_ids_raw[i * 4 + 3],
-        ])
+        ]);
     }
     tet_ids
 }
 
+#[must_use]
 pub fn get_cloth() -> MeshData {
     static VERTS_RAW: [f32; 9963] = [
         -0.200000, 1.145859, -0.000000, -0.200000, 1.105859, -0.000000, -0.200000, 1.065859,
@@ -2531,6 +2539,7 @@ pub fn get_cloth() -> MeshData {
     }
 }
 
+#[must_use]
 pub fn get_bunny() -> TetMeshData {
     static VERTS_RAW: [f32; 999] = [
         0.1667, 0.0320, 0.0191, 0.1474, 0.0432, 0.1918, 0.2237, 0.0267, 0.1427, -0.0349, 0.0627,
@@ -3201,6 +3210,7 @@ pub fn get_bunny() -> TetMeshData {
     }
 }
 
+#[must_use]
 pub fn get_dragon() -> SkinnedTetMeshData {
     static TET_VERTS_RAW: [f32; 3702] = [
         -0.067935, 1.288305, -0.082477, 0.003506, 1.248151, -0.070033, 0.001571, 1.244475,

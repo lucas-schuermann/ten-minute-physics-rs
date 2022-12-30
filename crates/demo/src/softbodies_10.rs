@@ -2,7 +2,7 @@ use glam::Vec3;
 use rand::Rng;
 use wasm_bindgen::prelude::*;
 
-use solver::softbodies_10::*;
+use solver::softbodies_10::SoftBody;
 
 #[wasm_bindgen]
 pub struct SoftBodiesSimulation {
@@ -19,7 +19,7 @@ impl SoftBodiesSimulation {
         num_substeps: usize,
         edge_compliance: f32,
         vol_compliance: f32,
-    ) -> Result<SoftBodiesSimulation, JsValue> {
+    ) -> SoftBodiesSimulation {
         let mut sim = Self {
             bodies: vec![],
             num_substeps,
@@ -27,7 +27,7 @@ impl SoftBodiesSimulation {
             vol_compliance,
         };
         sim.reset();
-        Ok(sim)
+        sim
     }
 
     #[wasm_bindgen]
@@ -55,7 +55,7 @@ impl SoftBodiesSimulation {
 
     #[wasm_bindgen]
     pub fn squash(&mut self) {
-        self.bodies.iter_mut().for_each(|b| b.squash());
+        self.bodies.iter_mut().for_each(SoftBody::squash);
     }
 
     #[wasm_bindgen]
@@ -127,6 +127,6 @@ impl SoftBodiesSimulation {
 
     #[wasm_bindgen]
     pub fn step(&mut self) {
-        self.bodies.iter_mut().for_each(|b| b.simulate());
+        self.bodies.iter_mut().for_each(SoftBody::simulate);
     }
 }

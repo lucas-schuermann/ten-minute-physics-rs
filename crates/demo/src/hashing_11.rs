@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss
+)]
+
 use glam::{vec3, Vec3};
 use once_cell::sync::Lazy;
 use rand::Rng;
@@ -13,13 +19,13 @@ const SPACING: f32 = 3.0 * RADIUS;
 const INIT_VEL_RAND: f32 = 0.2;
 const BOUNDS: [Vec3; 2] = [vec3(-1.0, 0.0, -1.0), vec3(1.0, 2.0, 1.0)];
 
-const NUMX: Lazy<usize> =
+static NUMX: Lazy<usize> =
     Lazy::new(|| f32::floor((BOUNDS[1].x - BOUNDS[0].x - 2.0 * SPACING) / SPACING) as usize);
-const NUMY: Lazy<usize> =
+static NUMY: Lazy<usize> =
     Lazy::new(|| f32::floor((BOUNDS[1].y - BOUNDS[0].y - 2.0 * SPACING) / SPACING) as usize);
-const NUMZ: Lazy<usize> =
+static NUMZ: Lazy<usize> =
     Lazy::new(|| f32::floor((BOUNDS[1].z - BOUNDS[0].z - 2.0 * SPACING) / SPACING) as usize);
-pub const NUM_BODIES: Lazy<usize> = Lazy::new(|| *NUMX * *NUMY * *NUMZ);
+static NUM_BODIES: Lazy<usize> = Lazy::new(|| *NUMX * *NUMY * *NUMZ);
 
 #[wasm_bindgen]
 pub struct HashSimulation {
@@ -33,8 +39,9 @@ pub struct HashSimulation {
 
 #[wasm_bindgen]
 impl HashSimulation {
+    #[allow(clippy::new_without_default)]
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<HashSimulation, JsValue> {
+    pub fn new() -> HashSimulation {
         let mut sim = Self {
             num_bodies: *NUM_BODIES,
             pos: vec![Vec3::ZERO; *NUM_BODIES],
@@ -44,7 +51,7 @@ impl HashSimulation {
             hash: Hash::new(MIN_DIST, *NUM_BODIES),
         };
         sim.reset();
-        Ok(sim)
+        sim
     }
 
     #[wasm_bindgen]
@@ -115,12 +122,12 @@ impl HashSimulation {
 
     // manually define since `#[wasm_bindgen]` doesn't yet work for constants
     #[wasm_bindgen]
-    pub fn num_bodies(&self) -> usize {
+    pub fn num_bodies() -> usize {
         *NUM_BODIES
     }
 
     #[wasm_bindgen]
-    pub fn radius(&self) -> f32 {
+    pub fn radius() -> f32 {
         RADIUS
     }
 

@@ -15,6 +15,7 @@ pub struct Hash {
 }
 
 impl Hash {
+    #[must_use]
     pub fn new(spacing: f32, max_num_objects: usize) -> Self {
         let table_size = 2 * max_num_objects; // LVSTODO move to param
         Self {
@@ -26,12 +27,13 @@ impl Hash {
             query_size: 0,
 
             // for `query_all`
-            max_num_objects: max_num_objects,
+            max_num_objects,
             first_adj_id: vec![0; max_num_objects + 1],
             adj_ids: Vec::with_capacity(10 * max_num_objects), // LVSTODO move to const
         }
     }
 
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
     fn hash_coords(&self, xi: i32, yi: i32, zi: i32) -> usize {
         (i32::abs(
             xi.wrapping_mul(92_837_111_i32)
@@ -52,9 +54,7 @@ impl Hash {
         )
     }
 
-    pub fn create(&mut self, positions: &Vec<Vec3>) {
-        let num_objects = positions.len().min(self.cell_entries.len());
-
+    pub fn create(&mut self, positions: &[Vec3]) {
         // compute cell sizes
         self.cell_start.fill(0);
         self.cell_entries.fill(0);
@@ -72,8 +72,8 @@ impl Hash {
         self.cell_start[self.table_size] = start; // guard
 
         // fill in object ids
-        for i in 0..num_objects {
-            let h = self.hash_pos(&positions[i]);
+        for (i, pos) in positions.iter().enumerate().take(self.cell_entries.len()) {
+            let h = self.hash_pos(pos);
             self.cell_start[h] -= 1;
             self.cell_entries[self.cell_start[h]] = i;
         }
@@ -107,7 +107,7 @@ impl Hash {
     }
 
     // for use in `self_collision_15.rs`
-    pub fn query_all(&mut self, positions: &Vec<Vec3>, max_dist: f32) {
+    pub fn query_all(&mut self, positions: &[Vec3], max_dist: f32) {
         let max_dist_sq = max_dist * max_dist;
         self.adj_ids.clear();
         for i in 0..self.max_num_objects {

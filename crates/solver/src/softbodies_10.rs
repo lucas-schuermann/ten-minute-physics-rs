@@ -34,6 +34,7 @@ pub struct SoftBody {
 }
 
 impl SoftBody {
+    #[must_use]
     pub fn new(num_substeps: usize, edge_compliance: f32, vol_compliance: f32) -> Self {
         let mesh = mesh::get_bunny();
         let num_particles = mesh.vertices.len();
@@ -43,7 +44,7 @@ impl SoftBody {
         let mut body = Self {
             num_particles,
             num_tets,
-            num_substeps: num_substeps,
+            num_substeps,
             dt,
             inv_dt: 1.0 / dt,
 
@@ -60,8 +61,8 @@ impl SoftBody {
             grab_inv_mass: 0.0,
             grab_id: None,
 
-            edge_compliance: edge_compliance,
-            vol_compliance: vol_compliance,
+            edge_compliance,
+            vol_compliance,
 
             mesh,
         };
@@ -69,6 +70,7 @@ impl SoftBody {
         body
     }
 
+    #[must_use]
     pub fn surface_tri_ids(&self) -> Vec<usize> {
         self.mesh.tet_surface_tri_ids.clone()
     }
@@ -158,7 +160,7 @@ impl SoftBody {
             let mut w = 0.0;
             let tet = self.tet_ids[i];
             let mut grads = [Vec3::ZERO; 4];
-            for j in 0..4 {
+            for (j, grad) in grads.iter_mut().enumerate() {
                 let order = VOL_ID_ORDER[j];
                 let id0 = tet[order[0]];
                 let id1 = tet[order[1]];
@@ -166,8 +168,8 @@ impl SoftBody {
 
                 let temp0 = self.pos[id1] - self.pos[id0];
                 let temp1 = self.pos[id2] - self.pos[id0];
-                grads[j] = temp0.cross(temp1) / 6.0;
-                w += self.inv_mass[tet[j]] * grads[j].length_squared();
+                *grad = temp0.cross(temp1) / 6.0;
+                w += self.inv_mass[tet[j]] * grad.length_squared();
             }
             if w == 0.0 {
                 continue;
@@ -176,9 +178,9 @@ impl SoftBody {
             let rest_vol = self.rest_vol[i];
             let c = vol - rest_vol;
             let s = -c / (w + alpha);
-            for j in 0..4 {
+            for (j, grad) in grads.iter().enumerate() {
                 let id = self.tet_ids[i][j];
-                self.pos[id] += grads[j] * s * self.inv_mass[id];
+                self.pos[id] += *grad * s * self.inv_mass[id];
             }
         }
     }

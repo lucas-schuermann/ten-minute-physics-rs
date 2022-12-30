@@ -15,10 +15,10 @@ const NUM_CONSTRAINTS_PER_PARTICLE: usize = 6;
 
 #[derive(Default, Clone, Copy)]
 enum ConstraintKind {
-    STRETCH,
-    SHEAR,
+    Stretch,
+    Shear,
     #[default]
-    BENDING,
+    Bending,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -59,6 +59,7 @@ pub struct Cloth {
 }
 
 impl Cloth {
+    #[must_use]
     pub fn new(
         num_substeps: usize,
         bending_compliance: f32,
@@ -158,12 +159,12 @@ impl Cloth {
         self.reset(false);
 
         let constraints = [
-            (ConstraintKind::STRETCH, (0, 0, 0, 1)),
-            (ConstraintKind::STRETCH, (0, 0, 1, 0)),
-            (ConstraintKind::SHEAR, (0, 0, 1, 1)),
-            (ConstraintKind::SHEAR, (0, 1, 1, 0)),
-            (ConstraintKind::BENDING, (0, 0, 0, 2)),
-            (ConstraintKind::BENDING, (0, 0, 2, 0)),
+            (ConstraintKind::Stretch, (0, 0, 0, 1)),
+            (ConstraintKind::Stretch, (0, 0, 1, 0)),
+            (ConstraintKind::Shear, (0, 0, 1, 1)),
+            (ConstraintKind::Shear, (0, 1, 1, 0)),
+            (ConstraintKind::Bending, (0, 0, 0, 2)),
+            (ConstraintKind::Bending, (0, 0, 2, 0)),
         ];
         assert_eq!(constraints.len(), NUM_CONSTRAINTS_PER_PARTICLE);
         self.num_constraints = 0;
@@ -190,11 +191,12 @@ impl Cloth {
         }
     }
 
+    #[must_use]
     fn get_compliance(&self, constraint: &Constraint) -> f32 {
         match constraint.kind {
-            ConstraintKind::STRETCH => self.stretch_compliance,
-            ConstraintKind::SHEAR => self.shear_compliance,
-            ConstraintKind::BENDING => self.bending_compliance,
+            ConstraintKind::Stretch => self.stretch_compliance,
+            ConstraintKind::Shear => self.shear_compliance,
+            ConstraintKind::Bending => self.bending_compliance,
         }
     }
 

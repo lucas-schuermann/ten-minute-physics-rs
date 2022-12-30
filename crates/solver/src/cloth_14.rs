@@ -44,12 +44,12 @@ struct Edge {
 
 fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
     // create common edges
-    let mut edges = vec![];
-    let num_tris = tri_ids.len();
-    for i in 0..num_tris {
+    let num_edges = tri_ids.len() * 3;
+    let mut edges = Vec::with_capacity(num_edges);
+    for (i, ids) in tri_ids.iter().enumerate() {
         for j in 0..3 {
-            let id0 = tri_ids[i][j];
-            let id1 = tri_ids[i][(j + 1) % 3];
+            let id0 = ids[j];
+            let id1 = ids[(j + 1) % 3];
             edges.push(Edge {
                 id0: id0.min(id1),
                 id1: id0.max(id1),
@@ -68,7 +68,7 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
     });
 
     // find matching edges
-    let mut neighbors: Vec<Option<usize>> = vec![None; 3 * num_tris];
+    let mut neighbors: Vec<Option<usize>> = vec![None; num_edges];
 
     let mut i = 0;
     while i < edges.len() {
@@ -88,6 +88,7 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
 }
 
 impl Cloth {
+    #[must_use]
     pub fn new(num_substeps: usize, bending_compliance: f32, stretching_compliance: f32) -> Self {
         let mesh = mesh::get_cloth();
         let num_particles = mesh.vertices.len();
@@ -110,6 +111,7 @@ impl Cloth {
                 }
                 // tri pair
                 if let Some(n) = n {
+                    #[allow(clippy::cast_sign_loss)]
                     let ni = f32::floor(n as f32 / 3.0) as usize;
                     let nj = n % 3;
                     let id2 = mesh.tri_ids[i][(j + 2) % 3];
@@ -164,15 +166,12 @@ impl Cloth {
     }
 
     fn init(&mut self) {
-        let tri_ids = &self.tri_ids;
         self.inv_mass = vec![0.0; self.num_particles];
-        let num_tris = tri_ids.len();
         let mut e0;
         let mut e1;
         let mut c;
 
-        for i in 0..num_tris {
-            let id = tri_ids[i];
+        for id in &self.tri_ids {
             let (id0, id1, id2) = (id[0], id[1], id[2]);
             e0 = self.pos[id1] - self.pos[id0];
             e1 = self.pos[id2] - self.pos[id0];

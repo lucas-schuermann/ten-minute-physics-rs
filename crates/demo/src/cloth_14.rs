@@ -1,7 +1,7 @@
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 
-use solver::cloth_14::*;
+use solver::cloth_14::Cloth;
 
 #[wasm_bindgen]
 pub struct ClothSimulation {
@@ -15,9 +15,9 @@ impl ClothSimulation {
         num_substeps: usize,
         bending_compliance: f32,
         stretching_compliance: f32,
-    ) -> Result<ClothSimulation, JsValue> {
+    ) -> ClothSimulation {
         let cloth = Cloth::new(num_substeps, bending_compliance, stretching_compliance);
-        Ok(Self { cloth })
+        Self { cloth }
     }
 
     #[wasm_bindgen]
@@ -87,20 +87,14 @@ impl ClothSimulation {
         self.cloth
             .edge_ids
             .iter()
-            .map(|e| e.to_vec())
-            .flatten()
+            .flat_map(|e| e.to_vec())
             .collect()
     }
 
     #[wasm_bindgen]
     pub fn mesh_tri_ids(&self) -> Vec<usize> {
         // NOTE: this heap allocates for the return value!
-        self.cloth
-            .tri_ids
-            .iter()
-            .map(|e| e.to_vec())
-            .flatten()
-            .collect()
+        self.cloth.tri_ids.iter().flat_map(|e| e.to_vec()).collect()
     }
 
     #[wasm_bindgen]

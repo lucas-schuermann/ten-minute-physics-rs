@@ -42,6 +42,7 @@ pub struct SkinnedSoftbody {
 }
 
 impl SkinnedSoftbody {
+    #[must_use]
     pub fn new(num_substeps: usize, edge_compliance: f32, vol_compliance: f32) -> Self {
         let mesh = mesh::get_dragon();
         let num_particles = mesh.tet_vertices.len();
@@ -81,6 +82,7 @@ impl SkinnedSoftbody {
         body
     }
 
+    #[must_use]
     pub fn surface_tri_ids(&self) -> Vec<usize> {
         self.mesh.surface_tri_ids.clone()
     }
@@ -270,9 +272,9 @@ impl SkinnedSoftbody {
             let rest_vol = self.rest_vol[i];
             let c = vol - rest_vol;
             let s = -c / (w + alpha);
-            for j in 0..4 {
+            for (j, grad) in grads.iter().enumerate() {
                 let id = self.tet_ids[i][j];
-                self.pos[id] += grads[j] * s * self.inv_mass[id];
+                self.pos[id] += *grad * s * self.inv_mass[id];
             }
         }
     }
@@ -289,24 +291,23 @@ impl SkinnedSoftbody {
 
     fn update_surface(&mut self) {
         for i in 0..self.num_surface_verts {
-            if self.skinning_info[i] == None {
-                continue;
+            if let Some((tetid, [b0, b1, b2])) = self.skinning_info[i] {
+                let b3 = 1.0 - b0 - b1 - b2;
+                let tet = self.tet_ids[tetid];
+                let id0 = tet[0];
+                let id1 = tet[1];
+                let id2 = tet[2];
+                let id3 = tet[3];
+                self.surface_pos[i] = Vec3::ZERO;
+                self.surface_pos[i] += self.pos[id0] * b0;
+                self.surface_pos[i] += self.pos[id1] * b1;
+                self.surface_pos[i] += self.pos[id2] * b2;
+                self.surface_pos[i] += self.pos[id3] * b3;
             }
-            let (tetid, [b0, b1, b2]) = self.skinning_info[i].unwrap(); // LVSTODO
-            let b3 = 1.0 - b0 - b1 - b2;
-            let tet = self.tet_ids[tetid];
-            let id0 = tet[0];
-            let id1 = tet[1];
-            let id2 = tet[2];
-            let id3 = tet[3];
-            self.surface_pos[i] = Vec3::ZERO;
-            self.surface_pos[i] += self.pos[id0] * b0;
-            self.surface_pos[i] += self.pos[id1] * b1;
-            self.surface_pos[i] += self.pos[id2] * b2;
-            self.surface_pos[i] += self.pos[id3] * b3;
         }
     }
 
+    #[must_use]
     fn get_tet_volume(&self, i: usize) -> f32 {
         let tet = self.tet_ids[i];
         let id0 = tet[0];

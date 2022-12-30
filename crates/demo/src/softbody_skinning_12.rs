@@ -1,7 +1,7 @@
 use glam::Vec3;
 use wasm_bindgen::prelude::*;
 
-use solver::softbody_skinning_12::*;
+use solver::softbody_skinning_12::SkinnedSoftbody;
 
 #[wasm_bindgen]
 pub struct SkinnedSoftbodySimulation {
@@ -15,9 +15,9 @@ impl SkinnedSoftbodySimulation {
         num_substeps: usize,
         edge_compliance: f32,
         vol_compliance: f32,
-    ) -> Result<SkinnedSoftbodySimulation, JsValue> {
+    ) -> SkinnedSoftbodySimulation {
         let body = SkinnedSoftbody::new(num_substeps, edge_compliance, vol_compliance);
-        Ok(Self { body })
+        Self { body }
     }
 
     #[wasm_bindgen]
