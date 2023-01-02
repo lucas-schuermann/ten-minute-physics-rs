@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { HashSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig } from './lib';
+import { Demo, Scene3D, Scene3DConfig } from './lib';
 
 type HashDemoProps = {
     bodies: number;
@@ -11,7 +11,8 @@ type HashDemoProps = {
     showCollisions: boolean;
 };
 
-const HashDemoConfig: SceneConfig = {
+const HashDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [1.5, 2.75],
     cameraLookAt: new THREE.Vector3(0, 0.9, 0),
 }
@@ -21,7 +22,7 @@ const collisionColor = new THREE.Color(0xFF8000);
 
 class HashDemo implements Demo<HashSimulation, HashDemoProps> {
     sim: HashSimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: HashDemoProps;
 
     private mesh: THREE.InstancedMesh;
@@ -30,8 +31,8 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
     private positions: Float32Array;
     private collisions: Uint8Array;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
-        this.sim = new rust_wasm.HashSimulation(canvas);
+    constructor(rust_wasm: any, _: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.sim = new rust_wasm.HashSimulation();
         this.scene = scene;
         this.initControls(folder);
     }

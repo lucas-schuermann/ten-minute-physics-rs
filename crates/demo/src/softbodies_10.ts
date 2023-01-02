@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { SoftBodiesSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig, Grabber } from './lib';
+import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
 const DEFAULT_EDGE_COMPLIANCE = 100.0;
@@ -19,21 +19,22 @@ type SoftBodiesDemoProps = {
     addBody: () => void;
 };
 
-const SoftBodiesDemoConfig: SceneConfig = {
+const SoftBodiesDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [1, 2],
     cameraLookAt: new THREE.Vector3(0, 0, 0),
 }
 
 class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> {
     sim: SoftBodiesSimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: SoftBodiesDemoProps;
 
     private tetsController: Controller;
     private grabber: Grabber;
     private surfaceMeshes: THREE.Mesh[];
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.SoftBodiesSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
         this.scene = scene;
         this.surfaceMeshes = [];
@@ -80,7 +81,7 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
                 this.initMesh();
             },
         };
-        this.tetsController = folder.add(this.props, 'tets').disable();
+        this.tetsController = folder.add(this.props, 'tets').name('tetrahedra').disable();
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
         folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_volume_compliance(v));
         folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_edge_compliance(v));

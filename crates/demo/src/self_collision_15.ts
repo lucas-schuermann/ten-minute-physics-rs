@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { SelfCollisionSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig, Grabber } from './lib';
+import { Demo, Scene3D, Scene3DConfig, Grabber, enumToValueList } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
 const DEFAULT_BENDING_COMPLIANCE = 1.0;
@@ -11,11 +11,17 @@ const DEFAULT_STRETCH_COMPLIANCE = 0.0;
 const DEFAULT_SHEAR_COMPLIANCE = 0.0001;
 const DEFAULT_FRICTION = 0.0;
 
+enum SceneType {
+    Freefall,
+    PinnedTop,
+}
+const DEFAULT_SCENE = SceneType.Freefall;
+
 type SelfCollisionDemoProps = {
+    scene: string; // enum string value
     triangles: number;
     vertices: number;
     animate: boolean;
-    hangFromTop: boolean;
     handleCollisions: boolean;
     showEdges: boolean;
     substeps: number;
@@ -25,14 +31,15 @@ type SelfCollisionDemoProps = {
     friction: number;
 };
 
-const SelfCollisionDemoConfig: SceneConfig = {
+const SelfCollisionDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [0.3, 0.5],
     cameraLookAt: new THREE.Vector3(0, 0.1, 0),
 }
 
 class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDemoProps> {
     sim: SelfCollisionSimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: SelfCollisionDemoProps;
 
     private grabber: Grabber;
@@ -41,7 +48,7 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
     private backMesh: THREE.Mesh;
     private positions: Float32Array;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.SelfCollisionSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCH_COMPLIANCE, DEFAULT_SHEAR_COMPLIANCE, DEFAULT_FRICTION);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -66,10 +73,10 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
+            scene: SceneType[DEFAULT_SCENE],
             triangles: this.sim.num_tris(),
             vertices: this.sim.num_particles(),
             animate: true,
-            hangFromTop: false,
             handleCollisions: true,
             showEdges: false,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
@@ -78,6 +85,10 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
             shearCompliance: DEFAULT_SHEAR_COMPLIANCE,
             friction: DEFAULT_FRICTION,
         };
+        folder.add(this.props, 'scene', enumToValueList(SceneType)).onChange((v: string) => {
+            this.sim.set_attach(v === SceneType[SceneType.PinnedTop]);
+            this.reset();
+        });
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
@@ -85,10 +96,6 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         folder.add(this.props, 'stretchCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretch_compliance(v));
         folder.add(this.props, 'shearCompliance').name('shear compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_shear_compliance(v));
         folder.add(this.props, 'friction').min(0).max(0.2).step(0.002).onChange((v: number) => this.sim.set_friction(v));
-        folder.add(this.props, 'hangFromTop').name('hang from top').onChange((v: boolean) => {
-            this.sim.set_attach(v);
-            this.reset();
-        })
         folder.add(this.props, 'handleCollisions').name('handle collisions').onChange((v: boolean) => {
             this.sim.set_handle_collisions(v);
             this.reset();

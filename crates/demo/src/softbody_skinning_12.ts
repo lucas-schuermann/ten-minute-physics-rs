@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { SkinnedSoftbodySimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig, Grabber } from './lib';
+import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
 const DEFAULT_EDGE_COMPLIANCE = 0.0;
@@ -11,7 +11,7 @@ const DEFAULT_VOL_COMPLIANCE = 0.0;
 
 type SkinnedSoftbodyDemoProps = {
     tets: number;
-    tris: number;
+    triangles: number;
     vertices: number;
     animate: boolean;
     substeps: number;
@@ -21,14 +21,15 @@ type SkinnedSoftbodyDemoProps = {
     squash: () => void;
 };
 
-const SkinnedSoftbodyDemoConfig: SceneConfig = {
+const SkinnedSoftbodyDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [1.5, 3],
     cameraLookAt: new THREE.Vector3(0, 0, 0),
 }
 
 class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoftbodyDemoProps> {
     sim: SkinnedSoftbodySimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: SkinnedSoftbodyDemoProps;
 
     private grabber: Grabber;
@@ -37,7 +38,7 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     private tetPositions: Float32Array;
     private surfacePositions: Float32Array;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.SkinnedSoftbodySimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -64,7 +65,7 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         let animateController: Controller;
         this.props = {
             tets: this.sim.num_tets(),
-            tris: this.sim.num_tris(),
+            triangles: this.sim.num_tris(),
             vertices: this.sim.num_surface_verts(),
             animate: true,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
@@ -78,13 +79,13 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
                 this.updateMesh();
             },
         };
-        folder.add(this.props, 'tets').disable();
-        folder.add(this.props, 'tris').disable();
+        folder.add(this.props, 'tets').name('tetrahedra').disable();
+        folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
         folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
         folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(250).step(2.5).onChange((v: number) => this.sim.set_volume_compliance(v));
         folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(100).step(1).onChange((v: number) => this.sim.set_edge_compliance(v));
-        folder.add(this.props, 'showTets').name('show tets').onChange((s: boolean) => {
+        folder.add(this.props, 'showTets').name('show tetrahedra').onChange((s: boolean) => {
             this.tetMesh.visible = s;
         });
         animateController = folder.add(this.props, 'animate');

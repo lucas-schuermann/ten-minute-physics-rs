@@ -12,19 +12,36 @@ type Demo<S, T> = {
     reset(): void;
 }
 
-type Scene = {
+type Scene = Scene2D | Scene3D;
+
+type Scene2D = {
+    kind: "2D";
+    context: CanvasRenderingContext2D;
+}
+
+type Scene3D = {
+    kind: "3D";
     scene: THREE.Scene;
     camera: THREE.Camera;
     renderer: THREE.Renderer;
     controls: OrbitControls;
 }
 
-type SceneConfig = {
+type SceneConfig = Scene2DConfig | Scene3DConfig;
+
+type Scene2DConfig = {
+    kind: "2D";
+    width: number;
+    height: number;
+}
+
+type Scene3DConfig = {
+    kind: "3D";
     cameraYZ: [number, number];
     cameraLookAt: THREE.Vector3;
 };
 
-type GrabberSim = {
+type GrabberInterface = {
     start_grab(id: number, v: Float32Array): void;
     move_grabbed(id: number, v: Float32Array): void;
     end_grab(id: number, v: Float32Array): void;
@@ -35,14 +52,14 @@ type GrabberProps = {
 }
 
 class Grabber {
-    sim: GrabberSim;
-    scene: Scene;
+    sim: GrabberInterface;
+    scene: Scene3D;
     props: GrabberProps;
     animateController: Controller;
 
-    mousePos: THREE.Vector2;
-    mouseDown: boolean;
-    intersectedObjectId: null | number;
+    private mousePos: THREE.Vector2;
+    private mouseDown: boolean;
+    private intersectedObjectId: null | number;
 
     private raycaster: THREE.Raycaster;
     private distance: number;
@@ -51,7 +68,7 @@ class Grabber {
     private time: number;
     private rect: DOMRect;
 
-    constructor(sim: GrabberSim, canvas: HTMLCanvasElement, scene: Scene, props: GrabberProps, animateController: Controller) {
+    constructor(sim: GrabberInterface, canvas: HTMLCanvasElement, scene: Scene3D, props: GrabberProps, animateController: Controller) {
         this.sim = sim;
         this.scene = scene;
         this.props = props;
@@ -147,4 +164,6 @@ class Grabber {
     }
 }
 
-export { Demo, Scene, SceneConfig, Grabber };
+const enumToValueList = (e: any): any => Object.values(e).filter((i) => typeof i === 'string');
+
+export { Demo, Scene, Scene2D, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, enumToValueList };

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { ClothSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig, Grabber } from './lib';
+import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 15;
 const DEFAULT_BENDING_COMPLIANCE = 1.0;
@@ -19,14 +19,15 @@ type ClothDemoProps = {
     stretchingCompliance: number;
 };
 
-const ClothDemoConfig: SceneConfig = {
+const ClothDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [1, 1],
     cameraLookAt: new THREE.Vector3(0, 0.6, 0),
 }
 
 class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     sim: ClothSimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: ClothDemoProps;
 
     private grabber: Grabber;
@@ -34,7 +35,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     private triMesh: THREE.Mesh;
     private positions: Float32Array;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.ClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCHING_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);

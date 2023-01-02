@@ -6,12 +6,19 @@ use crate::hashing_11::Hash;
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 const VEL_LIMIT_MULTIPLIER: f32 = 0.2;
+const DEFAULT_THICKNESS: f32 = 0.01;
 const SPACING: f32 = 0.01;
 const JITTER: f32 = -2.0 * (0.001 * SPACING) * (0.001 * SPACING);
-const THICKNESS: f32 = 0.01;
 const NUM_X: usize = 30;
 const NUM_Y: usize = 200;
-const NUM_CONSTRAINTS_PER_PARTICLE: usize = 6;
+const CONSTRAINTS: [(ConstraintKind, (usize, usize, usize, usize)); 6] = [
+    (ConstraintKind::Stretch, (0, 0, 0, 1)),
+    (ConstraintKind::Stretch, (0, 0, 1, 0)),
+    (ConstraintKind::Shear, (0, 0, 1, 1)),
+    (ConstraintKind::Shear, (0, 1, 1, 0)),
+    (ConstraintKind::Bending, (0, 0, 0, 2)),
+    (ConstraintKind::Bending, (0, 0, 2, 0)),
+];
 
 #[derive(Default, Clone, Copy)]
 enum ConstraintKind {
@@ -93,7 +100,7 @@ impl Cloth {
             num_substeps,
             dt,
             inv_dt: 1.0 / dt,
-            max_vel: VEL_LIMIT_MULTIPLIER * THICKNESS / dt,
+            max_vel: VEL_LIMIT_MULTIPLIER * DEFAULT_THICKNESS / dt,
 
             edge_ids,
             tri_ids,
@@ -103,7 +110,7 @@ impl Cloth {
             rest_pos: vec![Vec3::ZERO; num_particles],
             vel: vec![Vec3::ZERO; num_particles],
             inv_mass: vec![0.0; num_particles],
-            thickness: THICKNESS,
+            thickness: DEFAULT_THICKNESS,
             handle_collisions: true,
             hash: Hash::new(SPACING, num_particles),
 
@@ -111,7 +118,7 @@ impl Cloth {
             grab_id: None,
 
             num_constraints: 0,
-            constraints: vec![Constraint::default(); num_particles * NUM_CONSTRAINTS_PER_PARTICLE],
+            constraints: vec![Constraint::default(); num_particles * CONSTRAINTS.len()],
             stretch_compliance,
             shear_compliance,
             bending_compliance,
@@ -152,23 +159,14 @@ impl Cloth {
         self.num_substeps = num_substeps;
         self.dt = TIME_STEP / num_substeps as f32;
         self.inv_dt = 1.0 / self.dt;
-        self.max_vel = VEL_LIMIT_MULTIPLIER * THICKNESS / self.dt;
+        self.max_vel = VEL_LIMIT_MULTIPLIER * self.thickness / self.dt;
     }
 
     fn init(&mut self) {
         self.reset(false);
 
-        let constraints = [
-            (ConstraintKind::Stretch, (0, 0, 0, 1)),
-            (ConstraintKind::Stretch, (0, 0, 1, 0)),
-            (ConstraintKind::Shear, (0, 0, 1, 1)),
-            (ConstraintKind::Shear, (0, 1, 1, 0)),
-            (ConstraintKind::Bending, (0, 0, 0, 2)),
-            (ConstraintKind::Bending, (0, 0, 2, 0)),
-        ];
-        assert_eq!(constraints.len(), NUM_CONSTRAINTS_PER_PARTICLE);
         self.num_constraints = 0;
-        for (kind, indices) in constraints {
+        for (kind, indices) in CONSTRAINTS {
             for i in 0..NUM_X {
                 for j in 0..NUM_Y {
                     let i0 = i + indices.0;
