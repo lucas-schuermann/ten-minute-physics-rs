@@ -22,18 +22,20 @@ pub enum SceneType {
 impl FluidSimulation {
     #[must_use]
     #[wasm_bindgen(constructor)]
-    pub fn new(scene_type: SceneType) -> FluidSimulation {
+    pub fn new(scene_type: SceneType, width: f32, height: f32) -> FluidSimulation {
         let resolution: f32 = match scene_type {
             SceneType::Tank => 50.0,
             SceneType::HiresTunnel => 200.0,
             _ => 100.0,
         };
         let domain_height = 1.0;
-        let domain_width = domain_height / SIM_HEIGHT * SIM_WIDTH;
+        let domain_width = domain_height / height * width;
         let h = domain_height / resolution;
         let num_cells_x = f32::floor(domain_width / h) as usize;
         let num_cells_y = f32::floor(domain_height / h) as usize;
         let params = Parameters {
+            width: width as usize,
+            height: height as usize,
             density: 1000.0,
             h,
             gravity: -9.81,
@@ -119,7 +121,9 @@ impl FluidSimulation {
     }
 
     #[wasm_bindgen]
-    pub fn set_obstacle(&mut self, x: f32, y: f32, reset: bool, modulate: bool) {
+    pub fn set_obstacle(&mut self, c_x: f32, c_y: f32, reset: bool, modulate: bool) {
+        let x = c_x / self.state.renderer.c_scale;
+        let y = (self.state.renderer.height - c_y) / self.state.renderer.c_scale;
         self.state.set_obstacle(Vec2::new(x, y), reset, modulate);
     }
 

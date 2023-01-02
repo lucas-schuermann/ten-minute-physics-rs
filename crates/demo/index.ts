@@ -52,18 +52,18 @@ import('./pkg').then(rust_wasm => {
         canvas = newCanvas;
     }
 
-    const initCanvasScene = (config: Scene2DConfig): Scene2D => {
+    const initCanvasScene = (_: Scene2DConfig): Scene2D => {
         replaceCanvas();
 
         let context = canvas.getContext('2d', { desynchronized: true });
-        canvas.width = config.width;
-        canvas.style.width = config.width.toString();
-        canvas.height = config.height;
-        canvas.style.height = config.height.toString();
+        canvas.width = window.innerWidth;
+        //canvas.style.width = config.width.toString();
+        canvas.height = window.innerHeight;
+        //canvas.style.height = config.height.toString();
         canvas.focus();
         context.fillStyle = "blue";
         context.fillRect(0, 0, canvas.width, canvas.height);
-        return { kind: '2D', context };
+        return { kind: '2D', width: canvas.width, height: canvas.height, context };
     }
 
     const initThreeScene = (config: Scene3DConfig): Scene3D => {
@@ -73,10 +73,6 @@ import('./pkg').then(rust_wasm => {
         let controls: OrbitControls;
 
         replaceCanvas();
-
-        // LVSTODO: handle retina
-        canvas.width = window.innerWidth * 0.4;
-        canvas.height = window.innerHeight * 0.35;
 
         scene = new THREE.Scene();
 
@@ -127,7 +123,7 @@ import('./pkg').then(rust_wasm => {
         renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
         renderer.shadowMap.enabled = true;
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(canvas.width, canvas.height);
+        renderer.setSize(window.innerWidth, window.innerHeight);
 
         // Camera
         camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);

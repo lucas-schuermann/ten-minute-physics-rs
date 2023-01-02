@@ -7,11 +7,6 @@ import { Demo, Scene2D, Scene2DConfig, enumToValueList } from './lib';
 
 const DEFAULT_SCENE = SceneType.WindTunnel;
 
-//const WIDTH = 800;
-const HEIGHT = 600;
-const SIM_HEIGHT = 1.1;
-const C_SCALE = HEIGHT / SIM_HEIGHT;
-
 type FluidDemoProps = {
     scene: string; // enum string value
     animate: boolean;
@@ -28,8 +23,6 @@ type FluidDemoProps = {
 
 const FluidDemoConfig: Scene2DConfig = {
     kind: '2D',
-    width: 800,
-    height: 600,
 }
 
 class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
@@ -41,12 +34,11 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     private id: ImageData;
     private buf: Uint8ClampedArray;
     private mouseDown: boolean;
-    private rect: DOMRect;
-    private clientLeftTop: THREE.Vector2;
+    private mouseOffset: THREE.Vector2;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2D, folder: GUI) {
         this.rust_wasm = rust_wasm;
-        this.sim = new rust_wasm.FluidSimulation(DEFAULT_SCENE);
+        this.sim = new rust_wasm.FluidSimulation(DEFAULT_SCENE, scene.width, scene.height);
         this.scene = scene;
         this.initControls(folder, canvas);
     }
@@ -54,9 +46,9 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     init() {
         // LVSTODO safety comment
         const renderBufPtr = this.sim.render_buffer_ptr();
-        const bufSize = FluidDemoConfig.width * FluidDemoConfig.height * 4;
+        const bufSize = this.scene.width * this.scene.height * 4;
         this.buf = new Uint8ClampedArray(memory.buffer, renderBufPtr, bufSize);
-        this.id = new ImageData(this.buf, FluidDemoConfig.width, FluidDemoConfig.height);
+        this.id = new ImageData(this.buf, this.scene.width, this.scene.height);
     }
 
     update() {
@@ -68,7 +60,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
 
     reset() {
         this.sim.free();
-        this.sim = new this.rust_wasm.FluidSimulation(Object.values(SceneType).indexOf(this.props.scene));
+        this.sim = new this.rust_wasm.FluidSimulation(Object.values(SceneType).indexOf(this.props.scene), this.scene.width, this.scene.height);
         this.init();
         this.draw();
     }
@@ -90,21 +82,21 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         folder.add(this.props, 'scene', enumToValueList(SceneType)).onChange((_: string) => {
             this.reset();
         });
-        folder.add(this.props, 'animate');
         folder.add(this.props, 'numCells').name('cells').disable();
         folder.add(this.props, 'numIters').name('substeps').disable();
         folder.add(this.props, 'density').disable();
-        folder.add(this.props, 'overRelaxation').name('over relaxation').disable();
+        folder.add(this.props, 'overRelaxation').decimals(1).name('over relaxation').disable();
         folder.add(this.props, 'showObstacle').name('show obstacle');
         folder.add(this.props, 'showStreamlines').name('show streamlines');
         folder.add(this.props, 'showVelocities').name('show velocities');
         folder.add(this.props, 'showPressure').name('show pressure');
         folder.add(this.props, 'showSmoke').name('show smoke');
+        folder.add(this.props, 'animate');
 
         // scene interaction
         this.mouseDown = false;
-        this.rect = canvas.getBoundingClientRect();
-        this.clientLeftTop = new THREE.Vector2(canvas.clientLeft, canvas.clientTop);
+        let rect = canvas.getBoundingClientRect();
+        this.mouseOffset = new THREE.Vector2(rect.left - canvas.clientLeft, rect.top - canvas.clientTop);
         canvas.addEventListener('mousedown', e => { this.startDrag(e.x, e.y) });
         canvas.addEventListener('mouseup', _ => { this.endDrag() });
         canvas.addEventListener('mousemove', e => { this.drag(e.x, e.y) });
@@ -183,52 +175,49 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         //             }
         //         }
 
-        if (this.props.showObstacle) {
-            let r, ox, oy = this.sim.obstacle();
-            if (this.props.showPressure) {
-                c.fillStyle = "#000000";
-            } else {
-                c.fillStyle = "#DDDDDD";
-            }
+        //         if (this.props.showObstacle) {
+        //             let r, ox, oy = this.sim.obstacle();
+        //             if (this.props.showPressure) {
+        //                 c.fillStyle = "#000000";
+        //             } else {
+        //                 c.fillStyle = "#DDDDDD";
+        //             }
+        // 
+        //             c.beginPath();
+        //             c.arc(
+        //                 cX(ox), cY(oy), C_SCALE * r, 0.0, 2.0 * Math.PI);
+        //             c.closePath();
+        //             c.fill();
+        // 
+        //             c.lineWidth = 3.0;
+        //             c.strokeStyle = "#000000";
+        //             c.beginPath();
+        //             c.arc(
+        //                 cX(ox), cY(oy), C_SCALE * r, 0.0, 2.0 * Math.PI);
+        //             c.closePath();
+        //             c.stroke();
+        //             c.lineWidth = 1.0;
+        //         }
+        // 
+        //         if (this.props.showPressure) {
+        //             // LVSTODO display pressure
+        //         }
+    }
 
-            c.beginPath();
-            c.arc(
-                cX(ox), cY(oy), C_SCALE * r, 0.0, 2.0 * Math.PI);
-            c.closePath();
-            c.fill();
-
-            c.lineWidth = 3.0;
-            c.strokeStyle = "#000000";
-            c.beginPath();
-            c.arc(
-                cX(ox), cY(oy), C_SCALE * r, 0.0, 2.0 * Math.PI);
-            c.closePath();
-            c.stroke();
-            c.lineWidth = 1.0;
-        }
-
-        if (this.props.showPressure) {
-            // LVSTODO display pressure
-        }
+    private setMousePos(x: number, y: number, reset: boolean) {
+        const mx = x - this.mouseOffset.x;
+        const my = y - this.mouseOffset.y;
+        this.sim.set_obstacle(mx, my, reset, this.props.scene === SceneType[SceneType.Paint]);
     }
 
     private startDrag(x: number, y: number) {
-        const mx = x - this.rect.left - this.clientLeftTop.x;
-        const my = y - this.rect.top - this.clientLeftTop.y;
         this.mouseDown = true;
-
-        x = mx / C_SCALE;
-        y = (HEIGHT - my) / C_SCALE;
-        this.sim.set_obstacle(x, y, true, this.props.scene === SceneType[SceneType.Paint]);
+        this.setMousePos(x, y, true);
     }
 
     private drag(x: number, y: number) {
         if (this.mouseDown) {
-            const mx = x - this.rect.left - this.clientLeftTop.x;
-            const my = y - this.rect.top - this.clientLeftTop.y;
-            x = mx / C_SCALE;
-            y = (HEIGHT - my) / C_SCALE;
-            this.sim.set_obstacle(x, y, false, this.props.scene === SceneType[SceneType.Paint]);
+            this.setMousePos(x, y, false);
         }
     }
 

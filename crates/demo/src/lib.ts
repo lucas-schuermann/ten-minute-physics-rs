@@ -16,6 +16,8 @@ type Scene = Scene2D | Scene3D;
 
 type Scene2D = {
     kind: "2D";
+    width: number;
+    height: number;
     context: CanvasRenderingContext2D;
 }
 
@@ -31,8 +33,6 @@ type SceneConfig = Scene2DConfig | Scene3DConfig;
 
 type Scene2DConfig = {
     kind: "2D";
-    width: number;
-    height: number;
 }
 
 type Scene3DConfig = {

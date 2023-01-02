@@ -1,10 +1,6 @@
 use glam::Vec2;
 
-pub const WINDOW_WIDTH: usize = 800;
-pub const WINDOW_HEIGHT: usize = 600;
-pub const SIM_HEIGHT: f32 = 1.1;
-pub const SIM_WIDTH: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32 / SIM_HEIGHT;
-const C_SCALE: f32 = WINDOW_HEIGHT as f32 / SIM_HEIGHT;
+pub const DEFAULT_SIM_HEIGHT: f32 = 1.1;
 
 #[derive(Clone, Copy)]
 enum Field {
@@ -14,6 +10,8 @@ enum Field {
 }
 
 pub struct Parameters {
+    pub width: usize,
+    pub height: usize,
     pub density: f32,
     pub h: f32,
     pub gravity: f32,
@@ -23,6 +21,11 @@ pub struct Parameters {
 }
 
 pub struct Renderer {
+    pub width: f32,
+    pub height: f32,
+    pub sim_width: f32,
+    pub sim_height: f32,
+    pub c_scale: f32,
     pub render_buffer: Vec<u8>,
     pub show_pressure: bool,
     pub show_smoke: bool,
@@ -30,9 +33,15 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new() -> Self {
+    pub fn new(width: f32, height: f32) -> Self {
+        let sim_height = DEFAULT_SIM_HEIGHT;
         Renderer {
-            render_buffer: vec![255; WINDOW_WIDTH * WINDOW_HEIGHT * 4], // rgba
+            width,
+            height,
+            sim_width: width / height / sim_height,
+            sim_height,
+            c_scale: height as f32 / sim_height,
+            render_buffer: vec![255; width as usize * height as usize * 4], // rgba
             show_pressure: false,
             show_smoke: false,
             show_smoke_gradient: false,
@@ -44,6 +53,16 @@ impl Renderer {
         self.show_pressure = false;
         self.show_smoke = false;
         self.show_smoke_gradient = false;
+    }
+
+    #[inline(always)]
+    pub fn c_x(&self, x: f32) -> f32 {
+        return x * self.c_scale;
+    }
+
+    #[inline(always)]
+    pub fn c_y(&self, y: f32) -> f32 {
+        return self.height - y * self.c_scale;
     }
 }
 
@@ -67,16 +86,6 @@ pub struct State {
     new_m: Vec<f32>,
 
     pub renderer: Renderer,
-}
-
-#[inline(always)]
-fn c_x(x: f32) -> f32 {
-    return x * C_SCALE;
-}
-
-#[inline(always)]
-fn c_y(y: f32) -> f32 {
-    return WINDOW_HEIGHT as f32 - y * C_SCALE;
 }
 
 fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 4] {
@@ -103,8 +112,6 @@ impl State {
         let num_cells_y = num_cells_y + 2;
         let num_cells = num_cells_x * num_cells_y;
         Self {
-            params,
-
             obstacle_pos: Vec2::ZERO,
             obstacle_radius: 0.15,
             frame_number: 0,
@@ -121,7 +128,9 @@ impl State {
             m: vec![1.0; num_cells],
             new_m: vec![0.0; num_cells],
 
-            renderer: Renderer::new(),
+            renderer: Renderer::new(params.width as f32, params.height as f32),
+
+            params,
         }
     }
 
@@ -347,8 +356,8 @@ impl State {
 
     pub fn draw(&mut self) {
         let h = self.params.h;
-        let cx = f32::floor(C_SCALE * 1.1 * h) as usize + 1;
-        let cy = f32::floor(C_SCALE * 1.1 * h) as usize + 1;
+        let cx = f32::floor(self.renderer.c_scale * 1.1 * h) as usize + 1;
+        let cy = f32::floor(self.renderer.c_scale * 1.1 * h) as usize + 1;
         let n = self.num_cells_y;
         let mut color = [255; 4];
 
@@ -390,10 +399,10 @@ impl State {
                 } else if self.s[ind] == 0.0 {
                     color[0..=2].fill(0);
                 }
-                let x = f32::floor(c_x(i as f32 * h)) as usize;
-                let y = f32::floor(c_y((j as f32 + 1.0) * h)) as usize;
+                let x = f32::floor(self.renderer.c_x(i as f32 * h)) as usize;
+                let y = f32::floor(self.renderer.c_y((j as f32 + 1.0) * h)) as usize;
                 for yi in y..y + cy {
-                    let mut p = 4 * (yi * WINDOW_WIDTH + x);
+                    let mut p = 4 * (yi * self.renderer.width as usize + x);
                     for _ in 0..cx {
                         // LVSTODO cleaner ways to loop
                         if p + 4 < self.renderer.render_buffer.len() {
