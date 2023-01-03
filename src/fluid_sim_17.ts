@@ -1,7 +1,7 @@
 import GUI from 'lil-gui';
 import * as THREE from 'three';
 
-import { FluidSimulation, SceneType } from '../pkg';
+import { FluidSimulation, SceneType, Field } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene2D, Scene2DConfig, enumToValueList } from './lib';
 
@@ -45,7 +45,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
 
     init() {
         // LVSTODO safety comment
-        const renderBufPtr = this.sim.render_buffer_ptr();
+        const renderBufPtr = this.sim.render_buffer;
         const bufSize = this.scene.width * this.scene.height * 4;
         this.buf = new Uint8ClampedArray(memory.buffer, renderBufPtr, bufSize);
         this.id = new ImageData(this.buf, this.scene.width, this.scene.height);
@@ -69,10 +69,10 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         this.props = {
             scene: SceneType[DEFAULT_SCENE],
             animate: true,
-            numCells: this.sim.num_cells(),
-            numIters: this.sim.num_iters(),
-            density: this.sim.density(),
-            overRelaxation: this.sim.over_relaxation(),
+            numCells: this.sim.num_cells,
+            numIters: this.sim.params.num_iters,
+            density: this.sim.params.density,
+            overRelaxation: this.sim.params.over_relaxation,
             showObstacle: false,
             showStreamlines: false,
             showVelocities: false,
@@ -105,109 +105,118 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     private draw() {
         const c = this.scene.context;
 
-        // draw fluid (smoke and pressure)
+        // draw fluid (smoke and pressure from render buffer)
         c.putImageData(this.id, 0, 0);
 
-        //         if (this.props.showVelocities) {
-        // 
-        //             c.strokeStyle = "#000000";
-        //             const scale = 0.02;
-        //             for (var i = 0; i < f.numX; i++) {
-        //                 for (var j = 0; j < f.numY; j++) {
-        // 
-        //                     var u = f.u[i * n + j];
-        //                     var v = f.v[i * n + j];
-        // 
-        //                     c.beginPath();
-        // 
-        //                     let x0 = cX(i * h);
-        //                     let x1 = cX(i * h + u * scale);
-        //                     let y = cY((j + 0.5) * h);
-        // 
-        //                     c.moveTo(x0, y);
-        //                     c.lineTo(x1, y);
-        //                     c.stroke();
-        // 
-        //                     let x = cX((i + 0.5) * h);
-        //                     let y0 = cY(j * h);
-        //                     let y1 = cY(j * h + v * scale)
-        // 
-        //                     c.beginPath();
-        //                     c.moveTo(x, y0);
-        //                     c.lineTo(x, y1);
-        //                     c.stroke();
-        // 
-        //                 }
-        //             }
-        //         }
-        // 
-        //         if (this.props.showStreamlines) {
-        // 
-        //             var segLen = f.h * 0.2;
-        //             var numSegs = 15;
-        // 
-        //             c.strokeStyle = "#000000";
-        // 
-        //             for (var i = 1; i < f.numX - 1; i += 5) {
-        //                 for (var j = 1; j < f.numY - 1; j += 5) {
-        // 
-        //                     var x = (i + 0.5) * f.h;
-        //                     var y = (j + 0.5) * f.h;
-        // 
-        //                     c.beginPath();
-        //                     c.moveTo(cX(x), cY(y));
-        // 
-        //                     for (var n = 0; n < numSegs; n++) {
-        //                         var u = f.sampleField(x, y, U_FIELD);
-        //                         var v = f.sampleField(x, y, V_FIELD);
-        //                         l = Math.sqrt(u * u + v * v);
-        //                         // x += u/l * segLen;
-        //                         // y += v/l * segLen;
-        //                         x += u * 0.01;
-        //                         y += v * 0.01;
-        //                         if (x > f.numX * f.h)
-        //                             break;
-        // 
-        //                         c.lineTo(cX(x), cY(y));
-        //                     }
-        //                     c.stroke();
-        //                 }
-        //             }
-        //         }
+        if (this.props.showVelocities) {
 
-        //         if (this.props.showObstacle) {
-        //             let r, ox, oy = this.sim.obstacle();
-        //             if (this.props.showPressure) {
-        //                 c.fillStyle = "#000000";
-        //             } else {
-        //                 c.fillStyle = "#DDDDDD";
-        //             }
-        // 
-        //             c.beginPath();
-        //             c.arc(
-        //                 cX(ox), cY(oy), C_SCALE * r, 0.0, 2.0 * Math.PI);
-        //             c.closePath();
-        //             c.fill();
-        // 
-        //             c.lineWidth = 3.0;
-        //             c.strokeStyle = "#000000";
-        //             c.beginPath();
-        //             c.arc(
-        //                 cX(ox), cY(oy), C_SCALE * r, 0.0, 2.0 * Math.PI);
-        //             c.closePath();
-        //             c.stroke();
-        //             c.lineWidth = 1.0;
-        //         }
+            c.strokeStyle = "#000000";
+            let scale = 0.02;
+
+            const uPtr = this.sim.u;
+            const vPtr = this.sim.v;
+            const bufSize = this.sim.num_cells;
+            const ua = new Float32Array(memory.buffer, uPtr, bufSize);
+            const va = new Float32Array(memory.buffer, vPtr, bufSize);
+            const h = this.sim.params.h;
+            const n = this.sim.num_cells_y;
+
+            for (var i = 0; i < this.sim.num_cells_x; i++) {
+                for (var j = 0; j < this.sim.num_cells_y; j++) {
+
+                    const u = ua[i * n + j];
+                    const v = va[i * n + j];
+
+                    c.beginPath();
+
+                    let x0 = this.sim.c_x(i * h);
+                    let x1 = this.sim.c_x(i * h + u * scale);
+                    y = this.sim.c_y((j + 0.5) * h);
+
+                    c.moveTo(x0, y);
+                    c.lineTo(x1, y);
+                    c.stroke();
+
+                    x = this.sim.c_x((i + 0.5) * h);
+                    let y0 = this.sim.c_y(j * h);
+                    let y1 = this.sim.c_y(j * h + v * scale)
+
+                    c.beginPath();
+                    c.moveTo(x, y0);
+                    c.lineTo(x, y1);
+                    c.stroke();
+
+                }
+            }
+        }
+
+        if (this.props.showStreamlines) {
+
+            var segLen = this.sim.params.h * 0.2;
+            var numSegs = 15;
+
+            c.strokeStyle = "#000000";
+
+            for (var i = 1; i < this.sim.num_cells_x - 1; i += 5) {
+                for (var j = 1; j < this.sim.num_cells_y - 1; j += 5) {
+
+                    var x = (i + 0.5) * this.sim.params.h;
+                    var y = (j + 0.5) * this.sim.params.h;
+
+                    c.beginPath();
+                    c.moveTo(this.sim.c_x(x), this.sim.c_y(y));
+
+                    for (var n = 0; n < numSegs; n++) {
+                        var u = this.sim.sample_field(x, y, Field.U);
+                        var v = this.sim.sample_field(x, y, Field.V);
+                        let l = Math.sqrt(u * u + v * v);
+                        x += u / l * segLen;
+                        y += v / l * segLen;
+                        x += u * 0.01;
+                        y += v * 0.01;
+                        if (x > this.sim.num_cells_x * this.sim.params.h)
+                            break;
+
+                        c.lineTo(this.sim.c_x(x), this.sim.c_y(y));
+                    }
+                    c.stroke();
+                }
+            }
+        }
+
+        if (this.props.showObstacle) {
+            let r = this.sim.obstacle_radius + this.sim.params.h;
+            let o = this.sim.obstacle_pos;
+            if (this.props.showPressure) {
+                c.fillStyle = "#000000";
+            } else {
+                c.fillStyle = "#DDDDDD";
+            }
+
+            c.beginPath();
+            c.arc(this.sim.c_x(o[0]), this.sim.c_y(o[1]), this.sim.c_scale * r, 0.0, 2.0 * Math.PI);
+            c.closePath();
+            c.fill();
+
+            c.lineWidth = 3.0;
+            c.strokeStyle = "#000000";
+            c.beginPath();
+            c.arc(this.sim.c_x(o[0]), this.sim.c_y(o[1]), this.sim.c_scale * r, 0.0, 2.0 * Math.PI);
+            c.closePath();
+            c.stroke();
+            c.lineWidth = 1.0;
+        }
         // 
         //         if (this.props.showPressure) {
-        //             // LVSTODO display pressure
+        //             // LVSTODO display pressure text info
         //         }
     }
 
     private setMousePos(x: number, y: number, reset: boolean) {
         const mx = x - this.mouseOffset.x;
         const my = y - this.mouseOffset.y;
-        this.sim.set_obstacle(mx, my, reset, this.props.scene === SceneType[SceneType.Paint]);
+        this.sim.set_obstacle_from_canvas(mx, my, reset, this.props.scene === SceneType[SceneType.Paint]);
+        this.props.showObstacle = true;
     }
 
     private startDrag(x: number, y: number) {

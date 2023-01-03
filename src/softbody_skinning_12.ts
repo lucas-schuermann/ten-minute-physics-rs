@@ -52,7 +52,7 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         if (this.props.animate) {
             this.sim.step();
             this.updateMesh();
-            this.grabber.increaseTime(this.sim.dt());
+            this.grabber.increaseTime(this.sim.dt);
         }
     }
 
@@ -64,9 +64,9 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         let animateController: Controller;
         this.props = {
-            tets: this.sim.num_tets(),
-            triangles: this.sim.num_tris(),
-            vertices: this.sim.num_surface_verts(),
+            tets: this.sim.num_tets,
+            triangles: this.sim.num_tris,
+            vertices: this.sim.num_surface_verts,
             animate: true,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
             volumeCompliance: DEFAULT_VOL_COMPLIANCE,
@@ -82,9 +82,9 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         folder.add(this.props, 'tets').name('tetrahedra').disable();
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
-        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
-        folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(250).step(2.5).onChange((v: number) => this.sim.set_volume_compliance(v));
-        folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(100).step(1).onChange((v: number) => this.sim.set_edge_compliance(v));
+        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => (this.sim.solver_substeps = v));
+        folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(250).step(2.5).onChange((v: number) => (this.sim.vol_compliance = v));
+        folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(100).step(1).onChange((v: number) => (this.sim.edge_compliance = v));
         folder.add(this.props, 'showTets').name('show tetrahedra').onChange((s: boolean) => {
             this.tetMesh.visible = s;
         });
@@ -96,8 +96,8 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     }
 
     private initMesh() {
-        const tet_edge_ids = Array.from(this.sim.tet_edge_ids());
-        const surface_tri_ids = Array.from(this.sim.surface_tri_ids());
+        const tet_edge_ids = Array.from(this.sim.edge_ids);
+        const surface_tri_ids = Array.from(this.sim.surface_tri_ids);
 
         // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
@@ -105,10 +105,10 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         // store the pointer to the positions buffer location after these allocs. In the WASM
         // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
         // forward.
-        const tetPositionsPtr = this.sim.particle_positions_ptr();
-        this.tetPositions = new Float32Array(memory.buffer, tetPositionsPtr, this.sim.num_particles() * 3);
-        const surfacePositionsPtr = this.sim.surface_positions_ptr();
-        this.surfacePositions = new Float32Array(memory.buffer, surfacePositionsPtr, this.sim.num_surface_verts() * 3);
+        const tetPositionsPtr = this.sim.pos;
+        this.tetPositions = new Float32Array(memory.buffer, tetPositionsPtr, this.sim.num_particles * 3);
+        const surfacePositionsPtr = this.sim.surface_pos;
+        this.surfacePositions = new Float32Array(memory.buffer, surfacePositionsPtr, this.sim.num_surface_verts * 3);
 
         // visual tet mesh
         let geometry = new THREE.BufferGeometry();

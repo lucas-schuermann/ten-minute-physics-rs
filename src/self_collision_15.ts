@@ -62,20 +62,20 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         if (this.props.animate) {
             this.sim.step();
             this.updateMesh();
-            this.grabber.increaseTime(this.sim.dt());
+            this.grabber.increaseTime(this.sim.dt);
         }
     }
 
     reset() {
-        this.sim.reset();
+        this.sim.reset(this.props.scene === SceneType[SceneType.PinnedTop]);
         this.updateMesh();
     }
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
             scene: SceneType[DEFAULT_SCENE],
-            triangles: this.sim.num_tris(),
-            vertices: this.sim.num_particles(),
+            triangles: this.sim.num_tris,
+            vertices: this.sim.num_particles,
             animate: true,
             handleCollisions: true,
             showEdges: false,
@@ -85,19 +85,16 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
             shearCompliance: DEFAULT_SHEAR_COMPLIANCE,
             friction: DEFAULT_FRICTION,
         };
-        folder.add(this.props, 'scene', enumToValueList(SceneType)).onChange((v: string) => {
-            this.sim.set_attach(v === SceneType[SceneType.PinnedTop]);
-            this.reset();
-        });
+        folder.add(this.props, 'scene', enumToValueList(SceneType)).onChange(() => this.reset());
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
-        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
-        folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
-        folder.add(this.props, 'stretchCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretch_compliance(v));
-        folder.add(this.props, 'shearCompliance').name('shear compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_shear_compliance(v));
-        folder.add(this.props, 'friction').min(0).max(0.2).step(0.002).onChange((v: number) => this.sim.set_friction(v));
+        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => (this.sim.solver_substeps = v));
+        folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => (this.sim.bending_compliance = v));
+        folder.add(this.props, 'stretchCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => (this.sim.stretch_compliance = v));
+        folder.add(this.props, 'shearCompliance').name('shear compliance').min(0).max(1).step(0.01).onChange((v: number) => (this.sim.shear_compliance = v));
+        folder.add(this.props, 'friction').min(0).max(0.2).step(0.002).onChange((v: number) => (this.sim.friction = v));
         folder.add(this.props, 'handleCollisions').name('handle collisions').onChange((v: boolean) => {
-            this.sim.set_handle_collisions(v);
+            this.sim.handle_collisions = v;
             this.reset();
         });
         folder.add(this.props, 'showEdges').name('show edges').onChange((s: boolean) => {
@@ -112,8 +109,8 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
     }
 
     private initMesh() {
-        const tri_ids = Array.from(this.sim.mesh_tri_ids());
-        const edge_ids = Array.from(this.sim.mesh_edge_ids());
+        const triIds = Array.from(this.sim.tri_ids);
+        const edgeIds = Array.from(this.sim.edge_ids);
 
         // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
@@ -121,13 +118,13 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         // store the pointer to the positions buffer location after these allocs. In the WASM
         // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
         // forward.
-        const positionsPtr = this.sim.particle_positions_ptr();
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles() * 3);
+        const positionsPtr = this.sim.pos;
+        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
 
         // visual edge mesh
         let geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        geometry.setIndex(edge_ids);
+        geometry.setIndex(edgeIds);
         const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
         this.edgeMesh = new THREE.LineSegments(geometry, lineMaterial);
         this.edgeMesh.visible = false;
@@ -136,7 +133,7 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         // visual tri mesh
         geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        geometry.setIndex(tri_ids);
+        geometry.setIndex(triIds);
         const frontMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, side: THREE.FrontSide });
         this.frontMesh = new THREE.Mesh(geometry, frontMaterial);
         this.frontMesh.castShadow = true;

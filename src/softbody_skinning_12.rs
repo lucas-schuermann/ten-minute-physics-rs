@@ -1,4 +1,5 @@
 use glam::{vec3, Mat3, Vec3};
+use wasm_bindgen::prelude::*;
 
 use crate::{
     hashing_11::Hash,
@@ -10,21 +11,27 @@ const TIME_STEP: f32 = 1.0 / 60.0;
 const SPACING: f32 = 0.05;
 const VOL_ID_ORDER: [[usize; 3]; 4] = [[1, 3, 2], [0, 2, 3], [0, 3, 1], [0, 1, 2]];
 
-pub struct SkinnedSoftbody {
+#[wasm_bindgen]
+pub struct SkinnedSoftbodySimulation {
+    #[wasm_bindgen(readonly)]
     pub num_particles: usize,
+    #[wasm_bindgen(readonly)]
     pub num_tris: usize,
+    #[wasm_bindgen(readonly)]
     pub num_tets: usize,
+    #[wasm_bindgen(readonly)]
     pub num_surface_verts: usize,
     num_substeps: usize,
+    #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
 
-    pub tet_ids: Vec<[usize; 4]>,
-    pub edge_ids: Vec<usize>,
+    tet_ids: Vec<[usize; 4]>,
+    edge_ids: Vec<usize>,
     skinning_info: Vec<Option<(usize, [f32; 3])>>,
 
-    pub pos: Vec<Vec3>,
-    pub surface_pos: Vec<Vec3>,
+    pos: Vec<Vec3>,
+    surface_pos: Vec<Vec3>,
     prev: Vec<Vec3>,
     vel: Vec<Vec3>,
     inv_mass: Vec<f32>,
@@ -41,8 +48,10 @@ pub struct SkinnedSoftbody {
     mesh: SkinnedTetMeshData,
 }
 
-impl SkinnedSoftbody {
+#[wasm_bindgen]
+impl SkinnedSoftbodySimulation {
     #[must_use]
+    #[wasm_bindgen(constructor)]
     pub fn new(num_substeps: usize, edge_compliance: f32, vol_compliance: f32) -> Self {
         let mesh = mesh::get_dragon();
         let num_particles = mesh.tet_vertices.len();
@@ -82,11 +91,44 @@ impl SkinnedSoftbody {
         body
     }
 
+    #[wasm_bindgen(getter)]
+    pub fn pos(&self) -> *const Vec3 {
+        // Generally, this is unsafe! We take care in JS to make sure to
+        // query the positions array pointer after heap allocations have
+        // occurred (which move the location).
+        // Positions is a Vec<Vec3>, which is a linear array of f32s in
+        // memory.
+        self.pos.as_ptr()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn surface_pos(&self) -> *const Vec3 {
+        // See above comment for `pos` re: safety
+        self.surface_pos.as_ptr()
+    }
+
+    // We can copy since we are not performance sensitive for these three methods
+    #[wasm_bindgen(getter)]
+    pub fn tet_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.tet_ids.iter().flat_map(|e| e.to_vec()).collect()
+    }
+
+    // We can copy since we are not performance sensitive for these two methods
+    #[wasm_bindgen(getter)]
+    pub fn edge_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.edge_ids.clone()
+    }
+
     #[must_use]
+    #[wasm_bindgen(getter)]
     pub fn surface_tri_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
         self.mesh.surface_tri_ids.clone()
     }
 
+    #[wasm_bindgen(setter)]
     pub fn set_solver_substeps(&mut self, num_substeps: usize) {
         self.num_substeps = num_substeps;
         self.dt = TIME_STEP / num_substeps as f32;
@@ -279,7 +321,7 @@ impl SkinnedSoftbody {
         }
     }
 
-    pub fn simulate(&mut self) {
+    pub fn step(&mut self) {
         for _ in 0..self.num_substeps {
             self.pre_solve();
             self.solve();
@@ -328,11 +370,12 @@ impl SkinnedSoftbody {
         self.update_surface();
     }
 
-    pub fn start_grab(&mut self, pos: &Vec3) {
+    pub fn start_grab(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
         let mut min_d2 = f32::MAX;
         self.grab_id = None;
         for i in 0..self.num_particles {
-            let d2 = (*pos - self.pos[i]).length_squared();
+            let d2 = (pos - self.pos[i]).length_squared();
             if d2 < min_d2 {
                 min_d2 = d2;
                 self.grab_id = Some(i);
@@ -342,20 +385,22 @@ impl SkinnedSoftbody {
         if let Some(i) = self.grab_id {
             self.grab_inv_mass = self.inv_mass[i];
             self.inv_mass[i] = 0.0;
-            self.pos[i] = *pos;
+            self.pos[i] = pos;
         }
     }
 
-    pub fn move_grabbed(&mut self, pos: &Vec3) {
+    pub fn move_grabbed(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
         if let Some(i) = self.grab_id {
-            self.pos[i] = *pos;
+            self.pos[i] = pos;
         }
     }
 
-    pub fn end_grab(&mut self, vel: &Vec3) {
+    pub fn end_grab(&mut self, _: usize, vel: &[f32]) {
+        let vel = Vec3::from_slice(vel);
         if let Some(i) = self.grab_id {
             self.inv_mass[i] = self.grab_inv_mass;
-            self.vel[i] = *vel;
+            self.vel[i] = vel;
         }
         self.grab_id = None;
     }

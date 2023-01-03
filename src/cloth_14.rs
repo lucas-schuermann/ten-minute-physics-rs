@@ -1,22 +1,29 @@
 use std::cmp::Ordering;
 
 use glam::{vec3, Vec3};
+use wasm_bindgen::prelude::*;
 
 use crate::mesh::{self, MeshData};
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 
-pub struct Cloth {
+#[wasm_bindgen]
+pub struct ClothSimulation {
+    #[wasm_bindgen(readonly)]
     pub num_particles: usize,
-    num_substeps: usize,
+    #[wasm_bindgen(readonly)]
+    pub num_tris: usize,
+    #[wasm_bindgen(readonly)]
+    pub num_substeps: usize,
+    #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
 
-    pub edge_ids: Vec<[usize; 2]>,
-    pub tri_ids: Vec<[usize; 3]>,
+    edge_ids: Vec<[usize; 2]>,
+    tri_ids: Vec<[usize; 3]>,
 
-    pub pos: Vec<Vec3>,
+    pos: Vec<Vec3>,
     prev: Vec<Vec3>,
     vel: Vec<Vec3>,
     inv_mass: Vec<f32>,
@@ -87,11 +94,14 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
     neighbors
 }
 
-impl Cloth {
+#[wasm_bindgen]
+impl ClothSimulation {
     #[must_use]
+    #[wasm_bindgen(constructor)]
     pub fn new(num_substeps: usize, bending_compliance: f32, stretching_compliance: f32) -> Self {
         let mesh = mesh::get_cloth();
         let num_particles = mesh.vertices.len();
+        let num_tris = mesh.tri_ids.len();
         let pos = mesh.vertices.clone();
 
         let neighbors = find_tri_neighbors(&mesh.tri_ids);
@@ -99,7 +109,7 @@ impl Cloth {
         let mut edge_ids = vec![];
         let mut tri_pair_ids = vec![];
 
-        for i in 0..(mesh.tri_ids.len()) {
+        for i in 0..(num_tris) {
             for j in 0..3 {
                 let id0 = mesh.tri_ids[i][j];
                 let id1 = mesh.tri_ids[i][(j + 1) % 3];
@@ -124,6 +134,7 @@ impl Cloth {
         let dt = TIME_STEP / num_substeps as f32;
         let mut cloth = Self {
             num_particles,
+            num_tris,
             num_substeps,
             dt,
             inv_dt: 1.0 / dt,
@@ -153,12 +164,31 @@ impl Cloth {
         cloth
     }
 
+    #[wasm_bindgen(getter)]
+    pub fn pos(&self) -> *const Vec3 {
+        self.pos.as_ptr()
+    }
+
+    // We can copy since we are not performance sensitive for these two methods
+    #[wasm_bindgen(getter)]
+    pub fn edge_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.edge_ids.iter().flat_map(|e| e.to_vec()).collect()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn tri_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.tri_ids.iter().flat_map(|e| e.to_vec()).collect()
+    }
+
     pub fn reset(&mut self) {
         self.pos.copy_from_slice(&self.mesh.vertices);
         self.prev.copy_from_slice(&self.pos);
         self.vel.fill(Vec3::ZERO);
     }
 
+    #[wasm_bindgen(setter)]
     pub fn set_solver_substeps(&mut self, num_substeps: usize) {
         self.num_substeps = num_substeps;
         self.dt = TIME_STEP / num_substeps as f32;
@@ -296,7 +326,7 @@ impl Cloth {
         }
     }
 
-    pub fn simulate(&mut self) {
+    pub fn step(&mut self) {
         for _ in 0..self.num_substeps {
             self.pre_solve();
             self.solve();
@@ -304,11 +334,12 @@ impl Cloth {
         }
     }
 
-    pub fn start_grab(&mut self, pos: &Vec3) {
+    pub fn start_grab(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
         let mut min_d2 = f32::MAX;
         self.grab_id = None;
         for i in 0..self.num_particles {
-            let d2 = (*pos - self.pos[i]).length_squared();
+            let d2 = (pos - self.pos[i]).length_squared();
             if d2 < min_d2 {
                 min_d2 = d2;
                 self.grab_id = Some(i);
@@ -318,20 +349,22 @@ impl Cloth {
         if let Some(i) = self.grab_id {
             self.grab_inv_mass = self.inv_mass[i];
             self.inv_mass[i] = 0.0;
-            self.pos[i] = *pos;
+            self.pos[i] = pos;
         }
     }
 
-    pub fn move_grabbed(&mut self, pos: &Vec3) {
+    pub fn move_grabbed(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
         if let Some(i) = self.grab_id {
-            self.pos[i] = *pos;
+            self.pos[i] = pos;
         }
     }
 
-    pub fn end_grab(&mut self, vel: &Vec3) {
+    pub fn end_grab(&mut self, _: usize, vel: &[f32]) {
+        let vel = Vec3::from_slice(vel);
         if let Some(i) = self.grab_id {
             self.inv_mass[i] = self.grab_inv_mass;
-            self.vel[i] = *vel;
+            self.vel[i] = vel;
         }
         self.grab_id = None;
     }

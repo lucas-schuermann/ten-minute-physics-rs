@@ -49,7 +49,7 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
         if (this.props.animate) {
             this.sim.step();
             this.updateMeshes();
-            this.grabber.increaseTime(this.sim.dt());
+            this.grabber.increaseTime(this.sim.dt);
         }
     }
 
@@ -65,7 +65,7 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         let animateController: Controller;
         this.props = {
-            tets: this.sim.num_tets(),
+            tets: this.sim.num_tets,
             animate: true,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
             volumeCompliance: DEFAULT_VOL_COMPLIANCE,
@@ -82,9 +82,9 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
             },
         };
         this.tetsController = folder.add(this.props, 'tets').name('tetrahedra').disable();
-        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
-        folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_volume_compliance(v));
-        folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(500).step(5).onChange((v: number) => this.sim.set_edge_compliance(v));
+        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => (this.sim.solver_substeps = v));
+        folder.add(this.props, 'volumeCompliance').name('volume compliance').min(0).max(500).step(5).onChange((v: number) => (this.sim.volume_compliance = v));
+        folder.add(this.props, 'edgeCompliance').name('edge compliance').min(0).max(500).step(5).onChange((v: number) => (this.sim.edge_compliance = v));
         animateController = folder.add(this.props, 'animate');
         folder.add(this.props, 'squash');
         folder.add(this.props, 'addBody').name('add body');
@@ -94,15 +94,15 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     }
 
     private initMesh() {
-        const surface_tri_ids = Array.from(this.sim.surface_tri_ids());
+        const surface_tri_ids = Array.from(this.sim.surface_tri_ids);
         const id = this.surfaceMeshes.length;
 
         // NOTE: since additional bodies can be created in this demo, we do not rely on the `positionsPtr` to
         // be a constant offset in the WASM linear heap. The position geometry attribute is rewritten each
         // step in `updateMesh` to point to the refeteched `particle_positions_ptr(id)`. There are probably
         // more efficient ways to do this, but a simple implementation works for this demo.
-        const positionsPtr = this.sim.particle_positions_ptr(id);
-        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body() * 3);
+        const positionsPtr = this.sim.pos(id);
+        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
 
         // visual tri mesh
         const geometry = new THREE.BufferGeometry();
@@ -118,15 +118,15 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
         this.surfaceMeshes.push(surfaceMesh);
         geometry.computeVertexNormals();
 
-        this.props.tets = this.sim.num_tets();
+        this.props.tets = this.sim.num_tets;
         this.tetsController.updateDisplay();
 
         this.updateMesh(id);
     }
 
     private updateMesh(id: number) {
-        const positionsPtr = this.sim.particle_positions_ptr(id);
-        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body() * 3);
+        const positionsPtr = this.sim.pos(id);
+        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
         this.surfaceMeshes[id].geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         this.surfaceMeshes[id].geometry.computeVertexNormals();
         this.surfaceMeshes[id].geometry.attributes.position.needsUpdate = true;

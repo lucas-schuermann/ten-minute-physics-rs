@@ -1,14 +1,19 @@
 use glam::Vec2;
+use wasm_bindgen::prelude::*;
 
 pub const DEFAULT_SIM_HEIGHT: f32 = 1.1;
 
-#[derive(Clone, Copy)]
-enum Field {
-    U,
-    V,
-    S,
+#[wasm_bindgen]
+#[derive(PartialEq)]
+pub enum SceneType {
+    WindTunnel,
+    HiresTunnel,
+    Tank,
+    Paint,
 }
 
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
 pub struct Parameters {
     pub width: usize,
     pub height: usize,
@@ -20,72 +25,47 @@ pub struct Parameters {
     pub over_relaxation: f32,
 }
 
-pub struct Renderer {
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub enum Field {
+    U,
+    V,
+    S,
+}
+
+#[wasm_bindgen]
+pub struct FluidSimulation {
+    pub params: Parameters,
+
+    obstacle_pos: Vec2,
+    pub obstacle_radius: f32,
+    frame_number: usize,
+
+    #[wasm_bindgen(readonly)]
+    pub num_cells_x: usize,
+    #[wasm_bindgen(readonly)]
+    pub num_cells_y: usize,
+    #[wasm_bindgen(readonly)]
+    pub num_cells: usize,
+    u: Vec<f32>,
+    v: Vec<f32>,
+    new_u: Vec<f32>,
+    new_v: Vec<f32>,
+    p: Vec<f32>,
+    s: Vec<f32>,
+    m: Vec<f32>,
+    new_m: Vec<f32>,
+
+    // rendering
     pub width: f32,
     pub height: f32,
     pub sim_width: f32,
     pub sim_height: f32,
     pub c_scale: f32,
-    pub render_buffer: Vec<u8>,
+    render_buffer: Vec<u8>,
     pub show_pressure: bool,
     pub show_smoke: bool,
     pub show_smoke_gradient: bool,
-}
-
-impl Renderer {
-    pub fn new(width: f32, height: f32) -> Self {
-        let sim_height = DEFAULT_SIM_HEIGHT;
-        Renderer {
-            width,
-            height,
-            sim_width: width / height / sim_height,
-            sim_height,
-            c_scale: height as f32 / sim_height,
-            render_buffer: vec![255; width as usize * height as usize * 4], // rgba
-            show_pressure: false,
-            show_smoke: false,
-            show_smoke_gradient: false,
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.render_buffer.fill(255);
-        self.show_pressure = false;
-        self.show_smoke = false;
-        self.show_smoke_gradient = false;
-    }
-
-    #[inline(always)]
-    pub fn c_x(&self, x: f32) -> f32 {
-        return x * self.c_scale;
-    }
-
-    #[inline(always)]
-    pub fn c_y(&self, y: f32) -> f32 {
-        return self.height - y * self.c_scale;
-    }
-}
-
-pub struct State {
-    pub params: Parameters,
-
-    pub obstacle_pos: Vec2,
-    pub obstacle_radius: f32,
-    frame_number: usize,
-
-    pub num_cells_x: usize,
-    pub num_cells_y: usize,
-    pub num_cells: usize,
-    pub u: Vec<f32>,
-    v: Vec<f32>,
-    new_u: Vec<f32>,
-    new_v: Vec<f32>,
-    p: Vec<f32>,
-    pub s: Vec<f32>,
-    pub m: Vec<f32>,
-    new_m: Vec<f32>,
-
-    pub renderer: Renderer,
 }
 
 fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 4] {
@@ -105,13 +85,41 @@ fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 4] {
     return [255.0 * r, 255.0 * g, 255.0 * b, 255.0];
 }
 
-impl State {
+#[wasm_bindgen]
+impl FluidSimulation {
     #[must_use]
-    pub fn new(params: Parameters, num_cells_x: usize, num_cells_y: usize) -> Self {
+    #[wasm_bindgen(constructor)]
+    pub fn new(scene_type: SceneType, width: f32, height: f32) -> FluidSimulation {
+        let resolution: f32 = match scene_type {
+            SceneType::Tank => 50.0,
+            SceneType::HiresTunnel => 200.0,
+            _ => 100.0,
+        };
+        let domain_height = 1.0;
+        let domain_width = domain_height / height * width;
+        let h = domain_height / resolution;
+        let num_cells_x = f32::floor(domain_width / h) as usize;
+        let num_cells_y = f32::floor(domain_height / h) as usize;
+        let params = Parameters {
+            width: width as usize,
+            height: height as usize,
+            density: 1000.0,
+            h,
+            gravity: -9.81,
+            dt: 1.0 / 60.0,
+            num_iters: 40,
+            over_relaxation: 1.9,
+        };
+
         let num_cells_x = num_cells_x + 2;
         let num_cells_y = num_cells_y + 2;
         let num_cells = num_cells_x * num_cells_y;
-        Self {
+
+        let sim_height = DEFAULT_SIM_HEIGHT;
+        let width = params.width as f32;
+        let height = params.height as f32;
+
+        let mut fluid = Self {
             obstacle_pos: Vec2::ZERO,
             obstacle_radius: 0.15,
             frame_number: 0,
@@ -128,10 +136,120 @@ impl State {
             m: vec![1.0; num_cells],
             new_m: vec![0.0; num_cells],
 
-            renderer: Renderer::new(params.width as f32, params.height as f32),
+            // rendering
+            width,
+            height,
+            sim_width: width / height / sim_height,
+            sim_height,
+            c_scale: height as f32 / sim_height,
+            render_buffer: vec![255; width as usize * height as usize * 4], // rgba
+            show_pressure: false,
+            show_smoke: false,
+            show_smoke_gradient: false,
 
             params,
+        };
+
+        match scene_type {
+            SceneType::Tank => fluid.setup_tank(),
+            SceneType::WindTunnel | SceneType::HiresTunnel => fluid.setup_tunnel(scene_type),
+            SceneType::Paint => fluid.setup_paint(),
         }
+
+        fluid
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn render_buffer(&self) -> *const u8 {
+        // Generally, this is unsafe! We take care in JS to make sure to
+        // query the positions array pointer after heap allocations have
+        // occurred (which move the location).
+        // Positions is a Vec<u8>, which is a linear array of f32s in
+        // memory.
+        self.render_buffer.as_ptr()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn obstacle_pos(&self) -> Vec<f32> {
+        self.obstacle_pos.to_array().to_vec()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn u(&self) -> *const f32 {
+        // See above comment for `render_buffer` re: safety
+        self.u.as_ptr()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn v(&self) -> *const f32 {
+        // See above comment for `render_buffer` re: safety
+        self.v.as_ptr()
+    }
+
+    fn setup_tank(&mut self) {
+        let n = self.num_cells_y;
+        for i in 0..self.num_cells_x {
+            for j in 0..self.num_cells_y {
+                let mut s = 1.0; // fluid
+                if i == 0 || i == self.num_cells_x - 1 || j == 0 {
+                    s = 0.0; // solid
+                }
+                self.s[i * n + j] = s;
+            }
+        }
+
+        self.clear_render_buffer();
+        self.show_pressure = true;
+    }
+
+    fn setup_tunnel(&mut self, scene_type: SceneType) {
+        let n = self.num_cells_y;
+        let input_velocity = 2.0;
+        for i in 0..self.num_cells_x {
+            for j in 0..self.num_cells_y {
+                let mut s = 1.0; // fluid
+                if i == 0 || j == 0 || j == self.num_cells_y - 1 {
+                    s = 0.0; //solid
+                }
+                self.s[i * n + j] = s;
+                if i == 1 {
+                    self.u[i * n + j] = input_velocity;
+                }
+            }
+        }
+
+        let pipe_height = 0.1 * self.num_cells_y as f32;
+        let min_j = f32::floor(0.5 * self.num_cells_y as f32 - 0.5 * pipe_height) as usize;
+        let max_j = f32::floor(0.5 * self.num_cells_y as f32 + 0.5 * pipe_height) as usize;
+
+        for j in min_j..max_j {
+            self.m[j] = 0.0; //solid
+        }
+
+        // set obstacle radius?
+        self.set_obstacle(&Vec2::new(0.4, 0.5), true, false);
+
+        self.params.gravity = 0.0;
+
+        self.clear_render_buffer();
+        self.show_smoke = true;
+
+        if scene_type == SceneType::HiresTunnel {
+            self.params.dt = 1.0 / 120.0;
+            self.params.num_iters = 100;
+
+            self.show_pressure = true;
+        }
+    }
+
+    fn setup_paint(&mut self) {
+        self.params.gravity = 0.0;
+        self.params.over_relaxation = 1.0;
+        self.obstacle_radius = 0.1;
+
+        self.clear_render_buffer();
+        self.show_smoke = true;
+        self.show_smoke_gradient = true;
     }
 
     fn integrate(&mut self) {
@@ -191,7 +309,7 @@ impl State {
     }
 
     #[must_use]
-    fn sample_field(&self, x: f32, y: f32, field: Field) -> f32 {
+    pub fn sample_field(&self, x: f32, y: f32, field: Field) -> f32 {
         let n = self.num_cells_y;
         let h = self.params.h;
         let h1 = 1.0 / h;
@@ -320,14 +438,14 @@ impl State {
         self.m.copy_from_slice(&self.new_m);
     }
 
-    pub fn set_obstacle(&mut self, pos: Vec2, reset: bool, modulate: bool) {
+    fn set_obstacle(&mut self, pos: &Vec2, reset: bool, modulate: bool) {
         let mut v = Vec2::ZERO;
 
         if !reset {
-            v = (pos - self.obstacle_pos) / self.params.dt;
+            v = (*pos - self.obstacle_pos) / self.params.dt;
         }
 
-        self.obstacle_pos = pos;
+        self.obstacle_pos = *pos;
         let r = self.obstacle_radius;
         let n = self.num_cells_y;
         let h = self.params.h;
@@ -354,16 +472,40 @@ impl State {
         }
     }
 
+    pub fn set_obstacle_from_canvas(&mut self, c_x: f32, c_y: f32, reset: bool, modulate: bool) {
+        let x = c_x / self.c_scale;
+        let y = (self.height - c_y) / self.c_scale;
+        let pos = Vec2::new(x, y);
+        self.set_obstacle(&pos, reset, modulate);
+    }
+
+    pub fn clear_render_buffer(&mut self) {
+        self.render_buffer.fill(255);
+        self.show_pressure = false;
+        self.show_smoke = false;
+        self.show_smoke_gradient = false;
+    }
+
+    #[inline(always)]
+    pub fn c_x(&self, x: f32) -> f32 {
+        return x * self.c_scale;
+    }
+
+    #[inline(always)]
+    pub fn c_y(&self, y: f32) -> f32 {
+        return self.height - y * self.c_scale;
+    }
+
     pub fn draw(&mut self) {
         let h = self.params.h;
-        let cx = f32::floor(self.renderer.c_scale * 1.1 * h) as usize + 1;
-        let cy = f32::floor(self.renderer.c_scale * 1.1 * h) as usize + 1;
+        let cx = f32::floor(self.c_scale * 1.1 * h) as usize + 1;
+        let cy = f32::floor(self.c_scale * 1.1 * h) as usize + 1;
         let n = self.num_cells_y;
         let mut color = [255; 4];
 
         let mut p_min = self.p[0];
         let mut p_max = self.p[0];
-        if self.renderer.show_pressure {
+        if self.show_pressure {
             for i in 0..self.num_cells {
                 p_min = f32::min(p_min, self.p[i]);
                 p_max = f32::max(p_max, self.p[i]);
@@ -373,11 +515,11 @@ impl State {
         for i in 0..self.num_cells_x {
             for j in 0..self.num_cells_y {
                 let ind = i * n + j;
-                if self.renderer.show_pressure {
+                if self.show_pressure {
                     let p = self.p[ind];
                     let s = self.m[ind];
                     let sci_color = get_sci_color(p, p_min, p_max);
-                    if self.renderer.show_smoke {
+                    if self.show_smoke {
                         color[0] = f32::max(0.0, sci_color[0] - 255.0 * s) as u8;
                         color[1] = f32::max(0.0, sci_color[1] - 255.0 * s) as u8;
                         color[2] = f32::max(0.0, sci_color[2] - 255.0 * s) as u8;
@@ -386,9 +528,9 @@ impl State {
                         color[1] = sci_color[1] as u8;
                         color[2] = sci_color[2] as u8;
                     }
-                } else if self.renderer.show_smoke {
+                } else if self.show_smoke {
                     let s = self.m[ind];
-                    if self.renderer.show_smoke_gradient {
+                    if self.show_smoke_gradient {
                         let sci_color = get_sci_color(s, 0.0, 1.0);
                         color[0] = sci_color[0] as u8;
                         color[1] = sci_color[1] as u8;
@@ -399,14 +541,14 @@ impl State {
                 } else if self.s[ind] == 0.0 {
                     color[0..=2].fill(0);
                 }
-                let x = f32::floor(self.renderer.c_x(i as f32 * h)) as usize;
-                let y = f32::floor(self.renderer.c_y((j as f32 + 1.0) * h)) as usize;
+                let x = f32::floor(self.c_x(i as f32 * h)) as usize;
+                let y = f32::floor(self.c_y((j as f32 + 1.0) * h)) as usize;
                 for yi in y..y + cy {
-                    let mut p = 4 * (yi * self.renderer.width as usize + x);
+                    let mut p = 4 * (yi * self.width as usize + x);
                     for _ in 0..cx {
                         // LVSTODO cleaner ways to loop
-                        if p + 4 < self.renderer.render_buffer.len() {
-                            self.renderer.render_buffer[p..p + 4].copy_from_slice(&color);
+                        if p + 4 < self.render_buffer.len() {
+                            self.render_buffer[p..p + 4].copy_from_slice(&color);
                         }
                         p += 4;
                     }
@@ -415,7 +557,7 @@ impl State {
         }
     }
 
-    pub fn simulate(&mut self) {
+    pub fn step(&mut self) {
         self.integrate();
         self.p.fill(0.0);
         self.solve_incompressibility();
