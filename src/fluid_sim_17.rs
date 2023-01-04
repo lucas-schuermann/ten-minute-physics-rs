@@ -1,7 +1,7 @@
 use glam::Vec2;
 use wasm_bindgen::prelude::*;
 
-pub const DEFAULT_SIM_HEIGHT: f32 = 1.1;
+pub const SIM_HEIGHT: f32 = 1.0;
 
 #[wasm_bindgen]
 #[derive(PartialEq)]
@@ -68,7 +68,18 @@ pub struct FluidSimulation {
     pub show_smoke_gradient: bool,
 }
 
-fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 4] {
+fn set_color_all(color: &mut [u8; 4], val: f32) {
+    let val = f32::floor(val) as u8;
+    color[0..=2].fill(val);
+}
+
+fn set_color_elems(dest: &mut [u8; 4], src: &[f32; 3]) {
+    dest[0] = f32::floor(src[0]) as u8;
+    dest[1] = f32::floor(src[1]) as u8;
+    dest[2] = f32::floor(src[2]) as u8;
+}
+
+fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 3] {
     let mut val = val.clamp(min, max - 0.0001);
     let d = max - min;
     val = if d == 0.0 { 0.5 } else { (val - min) / d };
@@ -80,9 +91,9 @@ fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 4] {
         1 => (0.0, 1.0, 1.0 - s),
         2 => (s, 1.0, 0.0),
         3 => (1.0, 1.0 - s, 0.0),
-        _ => (0.0, 0.0, 0.0),
+        _ => (1.0, 0.0, 0.0),
     };
-    return [255.0 * r, 255.0 * g, 255.0 * b, 255.0];
+    return [255.0 * r, 255.0 * g, 255.0 * b];
 }
 
 #[wasm_bindgen]
@@ -95,7 +106,7 @@ impl FluidSimulation {
             SceneType::HiresTunnel => 200.0,
             _ => 100.0,
         };
-        let domain_height = 1.0;
+        let domain_height = SIM_HEIGHT;
         let domain_width = domain_height / height * width;
         let h = domain_height / resolution;
         let num_cells_x = f32::floor(domain_width / h) as usize;
@@ -115,7 +126,7 @@ impl FluidSimulation {
         let num_cells_y = num_cells_y + 2;
         let num_cells = num_cells_x * num_cells_y;
 
-        let sim_height = DEFAULT_SIM_HEIGHT;
+        let sim_height = SIM_HEIGHT;
         let width = params.width as f32;
         let height = params.height as f32;
 
@@ -498,8 +509,8 @@ impl FluidSimulation {
 
     pub fn draw(&mut self) {
         let h = self.params.h;
-        let cx = f32::floor(self.c_scale * 1.1 * h) as usize + 1;
-        let cy = f32::floor(self.c_scale * 1.1 * h) as usize + 1;
+        let cx = f32::floor(self.c_scale * h) as usize + 1;
+        let cy = f32::floor(self.c_scale * h) as usize + 1;
         let n = self.num_cells_y;
         let mut color = [255; 4];
 
@@ -520,34 +531,35 @@ impl FluidSimulation {
                     let s = self.m[ind];
                     let sci_color = get_sci_color(p, p_min, p_max);
                     if self.show_smoke {
-                        color[0] = f32::max(0.0, sci_color[0] - 255.0 * s) as u8;
-                        color[1] = f32::max(0.0, sci_color[1] - 255.0 * s) as u8;
-                        color[2] = f32::max(0.0, sci_color[2] - 255.0 * s) as u8;
+                        set_color_elems(
+                            &mut color,
+                            &[
+                                f32::max(0.0, sci_color[0] - 255.0 * s),
+                                f32::max(0.0, sci_color[1] - 255.0 * s),
+                                f32::max(0.0, sci_color[2] - 255.0 * s),
+                            ],
+                        )
                     } else {
-                        color[0] = sci_color[0] as u8;
-                        color[1] = sci_color[1] as u8;
-                        color[2] = sci_color[2] as u8;
+                        set_color_elems(&mut color, &sci_color);
                     }
                 } else if self.show_smoke {
                     let s = self.m[ind];
                     if self.show_smoke_gradient {
                         let sci_color = get_sci_color(s, 0.0, 1.0);
-                        color[0] = sci_color[0] as u8;
-                        color[1] = sci_color[1] as u8;
-                        color[2] = sci_color[2] as u8;
+                        set_color_elems(&mut color, &sci_color);
                     } else {
-                        color[0..=2].fill((255.0 * s) as u8);
+                        set_color_all(&mut color, 255.0 * s);
                     }
                 } else if self.s[ind] == 0.0 {
                     color[0..=2].fill(0);
                 }
-                let x = f32::floor(self.c_x(i as f32 * h)) as usize;
+                let x = f32::floor(self.c_x((i as f32) * h)) as usize;
                 let y = f32::floor(self.c_y((j as f32 + 1.0) * h)) as usize;
                 for yi in y..y + cy {
                     let mut p = 4 * (yi * self.width as usize + x);
                     for _ in 0..cx {
                         // LVSTODO cleaner ways to loop
-                        if p + 4 < self.render_buffer.len() {
+                        if p + 3 < self.render_buffer.len() {
                             self.render_buffer[p..p + 4].copy_from_slice(&color);
                         }
                         p += 4;
@@ -559,11 +571,14 @@ impl FluidSimulation {
 
     pub fn step(&mut self) {
         self.integrate();
+
         self.p.fill(0.0);
         self.solve_incompressibility();
+
         self.extrapolate();
         self.advect_vel();
         self.advect_smoke();
+
         self.draw();
         self.frame_number += 1;
     }

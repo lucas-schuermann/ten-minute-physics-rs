@@ -14,28 +14,34 @@ import { FluidDemo, FluidDemoConfig } from './src/fluid_sim_17';
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
 
-    const demos: Record<string, { config: SceneConfig, demo: any }> = {
+    const demos: Record<string, { title: string, config: SceneConfig, demo: any }> = {
         '10-SoftBodies': {
+            title: 'Soft Body Simulation',
             config: SoftBodiesDemoConfig,
             demo: SoftBodiesDemo,
         },
         '11-Hashing': {
+            title: 'Spatial Hashing',
             config: HashDemoConfig,
             demo: HashDemo,
         },
         '12-SoftbodySkinning': {
+            title: 'Soft Body Skinning',
             config: SkinnedSoftbodyDemoConfig,
             demo: SkinnedSoftbodyDemo,
         },
         '14-Cloth': {
+            title: 'Cloth Simulation',
             config: ClothDemoConfig,
             demo: ClothDemo,
         },
         '15-SelfCollision': {
+            title: 'Cloth Self Collision Handling',
             config: SelfCollisionDemoConfig,
             demo: SelfCollisionDemo,
         },
         '17-FluidSimulation': {
+            title: 'Euler Fluid',
             config: FluidDemoConfig,
             demo: FluidDemo,
         }
@@ -57,9 +63,7 @@ import('./pkg').then(rust_wasm => {
 
         let context = canvas.getContext('2d', { desynchronized: true });
         canvas.width = window.innerWidth;
-        //canvas.style.width = config.width.toString();
         canvas.height = window.innerHeight;
-        //canvas.style.height = config.height.toString();
         canvas.focus();
         context.fillStyle = "blue";
         context.fillRect(0, 0, canvas.width, canvas.height);
@@ -165,6 +169,7 @@ import('./pkg').then(rust_wasm => {
         } else {
             scene = initCanvasScene(config);
         }
+        $('title').innerText = demos[s].title;
         demo = new demos[s].demo(rust_wasm, canvas, scene, demoFolder);
         demo.init();
     }

@@ -49,6 +49,13 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         const bufSize = this.scene.width * this.scene.height * 4;
         this.buf = new Uint8ClampedArray(memory.buffer, renderBufPtr, bufSize);
         this.id = new ImageData(this.buf, this.scene.width, this.scene.height);
+
+        // LVSTODO set other props to match scene conifgs
+        if (this.props.scene === SceneType[SceneType.WindTunnel] || this.props.scene === SceneType[SceneType.HiresTunnel]) {
+            this.props.showObstacle = true;
+        } else {
+            this.props.showObstacle = false;
+        }
     }
 
     update() {
@@ -76,22 +83,22 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
             showObstacle: false,
             showStreamlines: false,
             showVelocities: false,
-            showPressure: false,
-            showSmoke: false,
+            showPressure: this.sim.show_pressure,
+            showSmoke: this.sim.show_smoke,
         };
         folder.add(this.props, 'scene', enumToValueList(SceneType)).onChange((_: string) => {
             this.reset();
         });
         folder.add(this.props, 'numCells').name('cells').disable();
-        folder.add(this.props, 'numIters').name('substeps').disable();
+        folder.add(this.props, 'numIters').name('substeps').onChange((v: number) => (this.sim.params.num_iters = v));
         folder.add(this.props, 'density').disable();
-        folder.add(this.props, 'overRelaxation').decimals(1).name('over relaxation').disable();
-        folder.add(this.props, 'showObstacle').name('show obstacle');
+        folder.add(this.props, 'overRelaxation').decimals(1).name('over relaxation').onChange((v: number) => (this.sim.params.over_relaxation = v));
+        folder.add(this.props, 'showObstacle').name('show obstacle').listen();
         folder.add(this.props, 'showStreamlines').name('show streamlines');
         folder.add(this.props, 'showVelocities').name('show velocities');
-        folder.add(this.props, 'showPressure').name('show pressure');
-        folder.add(this.props, 'showSmoke').name('show smoke');
-        folder.add(this.props, 'animate');
+        folder.add(this.props, 'showPressure').name('show pressure').onFinishChange((v: boolean) => (this.sim.show_pressure = v));
+        folder.add(this.props, 'showSmoke').name('show smoke').onFinishChange((v: boolean) => (this.sim.show_smoke = v));
+        folder.add(this.props, 'animate').listen();
 
         // scene interaction
         this.mouseDown = false;
@@ -116,7 +123,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
             const uPtr = this.sim.u;
             const vPtr = this.sim.v;
             const bufSize = this.sim.num_cells;
-            const ua = new Float32Array(memory.buffer, uPtr, bufSize);
+            const ua = new Float32Array(memory.buffer, uPtr, bufSize); // LVSTODO move to class param, memory leak
             const va = new Float32Array(memory.buffer, vPtr, bufSize);
             const h = this.sim.params.h;
             const n = this.sim.num_cells_y;
@@ -217,6 +224,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         const my = y - this.mouseOffset.y;
         this.sim.set_obstacle_from_canvas(mx, my, reset, this.props.scene === SceneType[SceneType.Paint]);
         this.props.showObstacle = true;
+        this.props.animate = true;
     }
 
     private startDrag(x: number, y: number) {
