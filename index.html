@@ -1,4 +1,43 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="color-scheme" content="dark light"/><title>Ten Minute Physics (XPBD) Demos - WASM + WebGL | Lucas V. Schuermann</title><style>#container {
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><title>Ten Minute Physics in Rust | Lucas V. Schuermann</title><style>body {
+            margin: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: Monospace;
+            font-size: 13px;
+            line-height: 20px;
+            overscroll-behavior: none;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+            pointer-events: auto;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        canvas {
+            display: block;
+            outline: none;
+            border: none;
+        }
+
+        #info {
+            color: #fff;
+            position: absolute;
+            top: 0px;
+            width: 100%;
+            padding: 10px 245px 0px 80px;
+            box-sizing: border-box;
+            text-align: center;
+            user-select: none;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #container {
             position: relative;
             width: fit-content;
         }
@@ -7,33 +46,4 @@
             position: absolute;
             top: 0;
             right: 0;
-        }
-
-        /* table used for page header */
-        table.h {
-            margin: 0 0 0 2rem;
-            border-spacing: 0;
-        }
-
-        table.h th {
-            padding: 0;
-            font-weight: normal;
-            text-align: right;
-            vertical-align: baseline;
-        }
-
-        table.h td {
-            padding: 0;
-        }
-
-        /* container */
-        .c {
-            font-family: monospace;
-            word-wrap: break-word;
-            max-width: 65rem;
-        }</style><script defer="defer" src="./crates/demo/index.js"></script></head><body><pre>
-+---------------------------------+
-| Ten Minute Physics (XPBD) Demos |
-| Rust with WASM + WebGL          |
-+---------------------------------+
-</pre><div class="c"><table class="h"><tr><th>authors:&nbsp;</th><td><a href="https://lucasschuermann.com" target="_blank" rel="noopener">Lucas V. Schuermann</a></td></tr><tr><th>code:&nbsp;</th><td><a href="https://github.com/cerrno/ten-minute-physics-rs">GitHub</a></td></tr><tr><th>published:&nbsp;</th><td>12/24/2022</td></tr><tr><th>updated:&nbsp;</th><td>12/29/2022</td></tr></table><br/><p>These demos were tested on Chrome 107, Safari 16, and Firefox 107. It should work with any browser that supports <a href="https://caniuse.com/webgl">WebGL</a> and <a href="https://caniuse.com/wasm">WASM</a>. At the time of writing, these features are supported for ~96% of web users. A desktop browser is recommended.</p><br/><div id="container"><canvas id="canvas"><pre>Browser does not support required features</pre></canvas><div id="gui"></div></div></div></body></html>
+        }</style><script defer="defer" src="./index.js"></script></head><body><div id="info"><a href="https://lucasschuermann.com" target="_blank" rel="noopener">Lucas V. Schuermann</a> - <a href="https://matthias-research.github.io/pages/tenMinutePhysics/index.html" target="_blank" rel="noopener">Ten Minute Physics</a> (XPBD) in Rust - <span id="title">Loading...</span><br><a href="https://github.com/cerrno/ten-minute-physics-rs">View code on GitHub</a></div><div id="container"><canvas id="canvas"><pre>Browser does not support required features</pre></canvas><div id="gui"></div></div></body></html>
