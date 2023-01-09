@@ -1,3 +1,5 @@
+#![allow(clippy::many_single_char_names, clippy::similar_names)]
+
 use std::f64::consts::PI;
 
 use glam::Vec2;
@@ -8,7 +10,7 @@ use web_sys::{CanvasRenderingContext2d, ImageData};
 const SIM_HEIGHT: f32 = 1.0;
 
 #[wasm_bindgen]
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum SceneType {
     WindTunnel,
     HiresTunnel,
@@ -23,6 +25,7 @@ enum Field {
     S,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[wasm_bindgen]
 pub struct FluidSimulation {
     #[wasm_bindgen(readonly)]
@@ -161,6 +164,7 @@ impl FluidSimulation {
             render_buffer,
             image_data,
             context,
+
             show_obstacle: true,
             show_streamlines: false,
             show_velocities: false,
@@ -218,7 +222,7 @@ impl FluidSimulation {
             self.m[j] = 0.0; // solid
         }
 
-        self.set_obstacle(&Vec2::new(0.4, 0.5), true, false);
+        self.set_obstacle(Vec2::new(0.4, 0.5), true, false);
 
         self.gravity = 0.0;
 
@@ -379,8 +383,8 @@ impl FluidSimulation {
                     let mut y = j as f32 * h + h2;
                     let mut u = self.u[i * n + j];
                     let v = self.avg_v(i, j);
-                    x = x - dt * u;
-                    y = y - dt * v;
+                    x -= dt * u;
+                    y -= dt * v;
                     u = self.sample_field(x, y, Field::U);
                     self.new_u[i * n + j] = u;
                 }
@@ -393,8 +397,8 @@ impl FluidSimulation {
                     let mut y = j as f32 * h;
                     let u = self.avg_u(i, j);
                     let mut v = self.v[i * n + j];
-                    x = x - dt * u;
-                    y = y - dt * v;
+                    x -= dt * u;
+                    y -= dt * v;
                     v = self.sample_field(x, y, Field::V);
                     self.new_v[i * n + j] = v;
                 }
@@ -428,14 +432,14 @@ impl FluidSimulation {
         self.m.copy_from_slice(&self.new_m);
     }
 
-    fn set_obstacle(&mut self, pos: &Vec2, reset: bool, modulate: bool) {
+    fn set_obstacle(&mut self, pos: Vec2, reset: bool, modulate: bool) {
         let mut v = Vec2::ZERO;
 
         if !reset {
-            v = (*pos - self.obstacle_pos) / self.dt;
+            v = (pos - self.obstacle_pos) / self.dt;
         }
 
-        self.obstacle_pos = *pos;
+        self.obstacle_pos = pos;
         let r = self.obstacle_radius;
         let n = self.num_cells_y;
         let h = self.h;
@@ -466,19 +470,22 @@ impl FluidSimulation {
         let x = c_x / self.c_scale;
         let y = (self.height - c_y) / self.c_scale;
         let pos = Vec2::new(x, y);
-        self.set_obstacle(&pos, reset, modulate);
+        self.set_obstacle(pos, reset, modulate);
     }
 
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     fn c_x(&self, x: f32) -> f32 {
         x * self.c_scale
     }
 
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     fn c_y(&self, y: f32) -> f32 {
         self.height - y * self.c_scale
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn draw(&mut self) {
         let h = self.h;
         let cx = f32::floor(self.c_scale * h) as usize + 1;
@@ -510,7 +517,7 @@ impl FluidSimulation {
                                 f32::max(0.0, sci_color[1] - 255.0 * s),
                                 f32::max(0.0, sci_color[2] - 255.0 * s),
                             ],
-                        )
+                        );
                     } else {
                         set_color_elems(&mut color, &sci_color);
                     }

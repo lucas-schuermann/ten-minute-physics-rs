@@ -1,7 +1,9 @@
 #![allow(
     clippy::unreadable_literal,
     clippy::excessive_precision,
-    clippy::approx_constant
+    clippy::approx_constant,
+    clippy::too_many_lines,
+    clippy::module_name_repetitions
 )]
 
 use glam::Vec3;

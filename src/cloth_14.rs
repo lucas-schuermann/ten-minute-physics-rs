@@ -121,7 +121,6 @@ impl ClothSimulation {
                 }
                 // tri pair
                 if let Some(n) = n {
-                    #[allow(clippy::cast_sign_loss)]
                     let ni = f32::floor(n as f32 / 3.0) as usize;
                     let nj = n % 3;
                     let id2 = mesh.tri_ids[i][(j + 2) % 3];

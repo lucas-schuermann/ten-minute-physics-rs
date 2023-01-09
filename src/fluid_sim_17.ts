@@ -105,8 +105,15 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         let rect = canvas.getBoundingClientRect();
         this.mouseOffset = new THREE.Vector2(rect.left - canvas.clientLeft, rect.top - canvas.clientTop);
         canvas.addEventListener('mousedown', e => { this.startDrag(e.x, e.y) });
+        canvas.addEventListener('touchstart', e => { this.startDrag(e.touches[0].clientX, e.touches[0].clientY) });
         canvas.addEventListener('mouseup', _ => { this.endDrag() });
+        canvas.addEventListener('touchend', _ => { this.endDrag() });
         canvas.addEventListener('mousemove', e => { this.drag(e.x, e.y) });
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            this.drag(e.touches[0].clientX, e.touches[0].clientY);
+        });
     }
 
     private setMousePos(x: number, y: number, reset: boolean) {

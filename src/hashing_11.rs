@@ -1,9 +1,3 @@
-#![allow(
-    clippy::cast_sign_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss
-)]
-
 use glam::{vec3, Vec3};
 use once_cell::sync::Lazy;
 use rand::Rng;
@@ -169,6 +163,7 @@ pub struct HashSimulation {
 
 #[wasm_bindgen]
 impl HashSimulation {
+    #[allow(clippy::new_without_default)]
     #[must_use]
     #[wasm_bindgen(constructor)]
     pub fn new() -> HashSimulation {
