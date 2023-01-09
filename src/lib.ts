@@ -12,19 +12,36 @@ type Demo<S, T> = {
     reset(): void;
 }
 
-type Scene = {
+type Scene = Scene2D | Scene3D;
+
+type Scene2D = {
+    kind: "2D";
+    width: number;
+    height: number;
+    context: CanvasRenderingContext2D;
+}
+
+type Scene3D = {
+    kind: "3D";
     scene: THREE.Scene;
-    camera: THREE.Camera;
+    camera: THREE.PerspectiveCamera;
     renderer: THREE.Renderer;
     controls: OrbitControls;
 }
 
-type SceneConfig = {
+type SceneConfig = Scene2DConfig | Scene3DConfig;
+
+type Scene2DConfig = {
+    kind: "2D";
+}
+
+type Scene3DConfig = {
+    kind: "3D";
     cameraYZ: [number, number];
     cameraLookAt: THREE.Vector3;
 };
 
-type GrabberSim = {
+type GrabberInterface = {
     start_grab(id: number, v: Float32Array): void;
     move_grabbed(id: number, v: Float32Array): void;
     end_grab(id: number, v: Float32Array): void;
@@ -35,23 +52,22 @@ type GrabberProps = {
 }
 
 class Grabber {
-    sim: GrabberSim;
-    scene: Scene;
+    sim: GrabberInterface;
+    scene: Scene3D;
     props: GrabberProps;
     animateController: Controller;
 
-    mousePos: THREE.Vector2;
-    mouseDown: boolean;
-    intersectedObjectId: null | number;
+    private mousePos: THREE.Vector2;
+    private mouseDown: boolean;
+    private intersectedObjectId: null | number;
 
     private raycaster: THREE.Raycaster;
     private distance: number;
     private prevPos: THREE.Vector3;
     private vel: THREE.Vector3;
     private time: number;
-    private rect: DOMRect;
 
-    constructor(sim: GrabberSim, canvas: HTMLCanvasElement, scene: Scene, props: GrabberProps, animateController: Controller) {
+    constructor(sim: GrabberInterface, canvas: HTMLCanvasElement, scene: Scene3D, props: GrabberProps, animateController: Controller) {
         this.sim = sim;
         this.scene = scene;
         this.props = props;
@@ -66,20 +82,19 @@ class Grabber {
         this.prevPos = new THREE.Vector3();
         this.vel = new THREE.Vector3();
         this.time = 0.0;
-        this.rect = scene.renderer.domElement.getBoundingClientRect();
 
         const onPointer = (e: MouseEvent) => {
             e.preventDefault();
-            if (e.type == "pointerdown") {
+            if (e.type === "pointerdown") {
                 this.mouseDown = true;
                 this.start(e.clientX, e.clientY);
                 if (this.intersectedObjectId !== null) {
                     this.scene.controls.saveState();
                     this.scene.controls.enabled = false;
                 }
-            } else if (e.type == "pointermove" && this.mouseDown) {
+            } else if (e.type === "pointermove" && this.mouseDown) {
                 this.move(e.clientX, e.clientY);
-            } else if (e.type == "pointerup") {
+            } else if (e.type === "pointerup") {
                 this.mouseDown = false;
                 this.scene.controls.enabled = true;
                 if (this.intersectedObjectId !== null) {
@@ -96,8 +111,9 @@ class Grabber {
         this.time += dt;
     }
     updateRaycaster(x: number, y: number) {
-        this.mousePos.x = ((x - this.rect.left) / this.rect.width) * 2 - 1;
-        this.mousePos.y = -((y - this.rect.top) / this.rect.height) * 2 + 1;
+        const rect = this.scene.renderer.domElement.getBoundingClientRect();
+        this.mousePos.x = ((x - rect.left) / rect.width) * 2 - 1;
+        this.mousePos.y = -((y - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mousePos, this.scene.camera);
     }
     start(x: number, y: number) {
@@ -106,18 +122,19 @@ class Grabber {
         const intersects = this.raycaster.intersectObjects(this.scene.scene.children);
         if (intersects.length > 0) {
             const obj = intersects[0].object;
-            if (obj) {
-                this.intersectedObjectId = 'id' in obj.userData ? obj.userData.id : 0;
-                this.distance = intersects[0].distance;
-                let pos = this.raycaster.ray.origin.clone();
-                pos.addScaledVector(this.raycaster.ray.direction, this.distance);
-                this.sim.start_grab(this.intersectedObjectId, pos.toArray() as unknown as Float32Array);
-                this.prevPos.copy(pos);
-                this.vel.set(0.0, 0.0, 0.0);
-                this.time = 0.0;
-                this.props.animate = true;
-                this.animateController.updateDisplay();
+            if (!obj) {
+                return;
             }
+            this.intersectedObjectId = 'id' in obj.userData ? obj.userData.id : 0;
+            this.distance = intersects[0].distance;
+            const pos = this.raycaster.ray.origin.clone();
+            pos.addScaledVector(this.raycaster.ray.direction, this.distance);
+            this.sim.start_grab(this.intersectedObjectId, pos.toArray() as unknown as Float32Array);
+            this.prevPos.copy(pos);
+            this.vel.set(0.0, 0.0, 0.0);
+            this.time = 0.0;
+            this.props.animate = true;
+            this.animateController.updateDisplay();
         }
     }
     move(x: number, y: number) {
@@ -136,7 +153,7 @@ class Grabber {
             this.prevPos.copy(pos);
             this.time = 0.0;
 
-            this.sim.move_grabbed(this.intersectedObjectId, pos.toArray() as unknown as Float32Array); // LVSTODO types
+            this.sim.move_grabbed(this.intersectedObjectId, pos.toArray() as unknown as Float32Array);
         }
     }
     end() {
@@ -147,4 +164,7 @@ class Grabber {
     }
 }
 
-export { Demo, Scene, SceneConfig, Grabber };
+// returns ['EnumOne', 'EnumTwo', ...]
+const enumToValueList = (e: any): any => Object.values(e).filter((i) => typeof i === 'string');
+
+export { Demo, Scene, Scene2D, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, enumToValueList };

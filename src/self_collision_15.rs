@@ -1,17 +1,25 @@
 use glam::{vec3, Vec3};
 use rand::Rng;
+use wasm_bindgen::prelude::*;
 
 use crate::hashing_11::Hash;
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 const VEL_LIMIT_MULTIPLIER: f32 = 0.2;
+const DEFAULT_THICKNESS: f32 = 0.01;
 const SPACING: f32 = 0.01;
 const JITTER: f32 = -2.0 * (0.001 * SPACING) * (0.001 * SPACING);
-const THICKNESS: f32 = 0.01;
 const NUM_X: usize = 30;
 const NUM_Y: usize = 200;
-const NUM_CONSTRAINTS_PER_PARTICLE: usize = 6;
+const CONSTRAINTS: [(ConstraintKind, (usize, usize, usize, usize)); 6] = [
+    (ConstraintKind::Stretch, (0, 0, 0, 1)),
+    (ConstraintKind::Stretch, (0, 0, 1, 0)),
+    (ConstraintKind::Shear, (0, 0, 1, 1)),
+    (ConstraintKind::Shear, (0, 1, 1, 0)),
+    (ConstraintKind::Bending, (0, 0, 0, 2)),
+    (ConstraintKind::Bending, (0, 0, 2, 0)),
+];
 
 #[derive(Default, Clone, Copy)]
 enum ConstraintKind {
@@ -28,17 +36,22 @@ struct Constraint {
     rest_len: f32,
 }
 
-pub struct Cloth {
+#[wasm_bindgen]
+pub struct SelfCollisionSimulation {
+    #[wasm_bindgen(readonly)]
     pub num_particles: usize,
-    num_substeps: usize,
+    #[wasm_bindgen(readonly)]
+    pub num_tris: usize,
+    num_substeps: u8,
+    #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
     max_vel: f32,
 
-    pub edge_ids: Vec<[usize; 2]>,
-    pub tri_ids: Vec<[usize; 3]>,
+    edge_ids: Vec<[usize; 2]>,
+    tri_ids: Vec<[usize; 3]>,
 
-    pub pos: Vec<Vec3>,
+    pos: Vec<Vec3>,
     prev: Vec<Vec3>,
     rest_pos: Vec<Vec3>,
     vel: Vec<Vec3>,
@@ -58,10 +71,12 @@ pub struct Cloth {
     pub friction: f32,
 }
 
-impl Cloth {
+#[wasm_bindgen]
+impl SelfCollisionSimulation {
     #[must_use]
+    #[wasm_bindgen(constructor)]
     pub fn new(
-        num_substeps: usize,
+        num_substeps: u8,
         bending_compliance: f32,
         stretch_compliance: f32,
         shear_compliance: f32,
@@ -87,13 +102,14 @@ impl Cloth {
             }
         }
 
-        let dt = TIME_STEP / num_substeps as f32;
+        let dt = TIME_STEP / Into::<f32>::into(num_substeps);
         let mut cloth = Self {
             num_particles,
+            num_tris: tri_ids.len(),
             num_substeps,
             dt,
             inv_dt: 1.0 / dt,
-            max_vel: VEL_LIMIT_MULTIPLIER * THICKNESS / dt,
+            max_vel: VEL_LIMIT_MULTIPLIER * DEFAULT_THICKNESS / dt,
 
             edge_ids,
             tri_ids,
@@ -103,7 +119,7 @@ impl Cloth {
             rest_pos: vec![Vec3::ZERO; num_particles],
             vel: vec![Vec3::ZERO; num_particles],
             inv_mass: vec![0.0; num_particles],
-            thickness: THICKNESS,
+            thickness: DEFAULT_THICKNESS,
             handle_collisions: true,
             hash: Hash::new(SPACING, num_particles),
 
@@ -111,7 +127,7 @@ impl Cloth {
             grab_id: None,
 
             num_constraints: 0,
-            constraints: vec![Constraint::default(); num_particles * NUM_CONSTRAINTS_PER_PARTICLE],
+            constraints: vec![Constraint::default(); num_particles * CONSTRAINTS.len()],
             stretch_compliance,
             shear_compliance,
             bending_compliance,
@@ -119,6 +135,29 @@ impl Cloth {
         };
         cloth.init();
         cloth
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn pos(&self) -> *const Vec3 {
+        // Generally, this is unsafe! We take care in JS to make sure to
+        // query the positions array pointer after heap allocations have
+        // occurred (which move the location).
+        // Positions is a Vec<Vec3>, which is a linear array of f32s in
+        // memory.
+        self.pos.as_ptr()
+    }
+
+    // We can copy since we are not performance sensitive for these two methods
+    #[wasm_bindgen(getter)]
+    pub fn edge_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.edge_ids.iter().flat_map(|e| e.to_vec()).collect()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn tri_ids(&self) -> Vec<usize> {
+        // NOTE: this heap allocates for the return value!
+        self.tri_ids.iter().flat_map(|e| e.to_vec()).collect()
     }
 
     pub fn reset(&mut self, attach: bool) {
@@ -148,27 +187,19 @@ impl Cloth {
         self.vel.fill(Vec3::ZERO);
     }
 
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+    #[wasm_bindgen(setter)]
+    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
         self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32;
+        self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
-        self.max_vel = VEL_LIMIT_MULTIPLIER * THICKNESS / self.dt;
+        self.max_vel = VEL_LIMIT_MULTIPLIER * self.thickness / self.dt;
     }
 
     fn init(&mut self) {
         self.reset(false);
 
-        let constraints = [
-            (ConstraintKind::Stretch, (0, 0, 0, 1)),
-            (ConstraintKind::Stretch, (0, 0, 1, 0)),
-            (ConstraintKind::Shear, (0, 0, 1, 1)),
-            (ConstraintKind::Shear, (0, 1, 1, 0)),
-            (ConstraintKind::Bending, (0, 0, 0, 2)),
-            (ConstraintKind::Bending, (0, 0, 2, 0)),
-        ];
-        assert_eq!(constraints.len(), NUM_CONSTRAINTS_PER_PARTICLE);
         self.num_constraints = 0;
-        for (kind, indices) in constraints {
+        for (kind, indices) in CONSTRAINTS {
             for i in 0..NUM_X {
                 for j in 0..NUM_Y {
                     let i0 = i + indices.0;
@@ -200,10 +231,10 @@ impl Cloth {
         }
     }
 
-    pub fn simulate(&mut self) {
+    pub fn step(&mut self) {
         if self.handle_collisions {
             self.hash.create(&self.pos);
-            let max_dist = self.max_vel * self.dt * self.num_substeps as f32;
+            let max_dist = self.max_vel * self.dt * Into::<f32>::into(self.num_substeps);
             self.hash.query_all(&self.pos, max_dist);
         }
 
@@ -326,11 +357,12 @@ impl Cloth {
         }
     }
 
-    pub fn start_grab(&mut self, pos: &Vec3) {
+    pub fn start_grab(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
         let mut min_d2 = f32::MAX;
         self.grab_id = None;
         for i in 0..self.num_particles {
-            let d2 = (*pos - self.pos[i]).length_squared();
+            let d2 = (pos - self.pos[i]).length_squared();
             if d2 < min_d2 {
                 min_d2 = d2;
                 self.grab_id = Some(i);
@@ -340,20 +372,22 @@ impl Cloth {
         if let Some(i) = self.grab_id {
             self.grab_inv_mass = self.inv_mass[i];
             self.inv_mass[i] = 0.0;
-            self.pos[i] = *pos;
+            self.pos[i] = pos;
         }
     }
 
-    pub fn move_grabbed(&mut self, pos: &Vec3) {
+    pub fn move_grabbed(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
         if let Some(i) = self.grab_id {
-            self.pos[i] = *pos;
+            self.pos[i] = pos;
         }
     }
 
-    pub fn end_grab(&mut self, vel: &Vec3) {
+    pub fn end_grab(&mut self, _: usize, vel: &[f32]) {
+        let vel = Vec3::from_slice(vel);
         if let Some(i) = self.grab_id {
             self.inv_mass[i] = self.grab_inv_mass;
-            self.vel[i] = *vel;
+            self.vel[i] = vel;
         }
         self.grab_id = None;
     }

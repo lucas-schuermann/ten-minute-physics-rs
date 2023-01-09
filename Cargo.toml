@@ -1,21 +1,33 @@
-[workspace]
-resolver = "2"
-members = ["crates/*"]
+[package]
+name = "ten-minute-physics-rs"
+version = "0.1.0"
+repository = "https://github.com/cerrno/ten-minute-physics-rs"
+authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
+edition = "2021"
+license = "MIT"
+publish = false
 
-[workspace.dependencies]
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
 cgmath = "0.18"
 js-sys = "0.3"
 wasm-bindgen = { version = "0.2" }
-web-sys = { version = "0.3" }
+web-sys = { version = "0.3", features = [
+    "ImageData",
+    "CanvasRenderingContext2d",
+] }
 glam = "0.22"
 getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
-once_cell = "1.16"
-env_logger = "0.10"
-log = "0.4"
+once_cell = "1.17"
 
 [profile.release]
 lto = "fat"
 panic = "abort"
 codegen-units = 1
 strip = true
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3"]

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { HashSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig } from './lib';
+import { Demo, Scene3D, Scene3DConfig } from './lib';
 
 type HashDemoProps = {
     bodies: number;
@@ -11,7 +11,8 @@ type HashDemoProps = {
     showCollisions: boolean;
 };
 
-const HashDemoConfig: SceneConfig = {
+const HashDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [1.5, 2.75],
     cameraLookAt: new THREE.Vector3(0, 0.9, 0),
 }
@@ -21,17 +22,17 @@ const collisionColor = new THREE.Color(0xFF8000);
 
 class HashDemo implements Demo<HashSimulation, HashDemoProps> {
     sim: HashSimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: HashDemoProps;
 
     private mesh: THREE.InstancedMesh;
     private translationMatrix: THREE.Matrix4;
     private colors: Float32Array;
-    private positions: Float32Array;
-    private collisions: Uint8Array;
+    private positions: Float32Array; // mapped to WASM memory
+    private collisions: Uint8Array; // mapped to WASM memory
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
-        this.sim = new rust_wasm.HashSimulation(canvas);
+    constructor(rust_wasm: any, _: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.sim = new rust_wasm.HashSimulation();
         this.scene = scene;
         this.initControls(folder);
     }
@@ -54,7 +55,7 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
 
     private initControls(folder: GUI) {
         this.props = {
-            bodies: HashSimulation.num_bodies(),
+            bodies: this.sim.num_bodies,
             animate: true,
             showCollisions: false,
         };
@@ -65,21 +66,21 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
 
     private initMesh() {
         const material = new THREE.MeshPhongMaterial();
-        const geometry = new THREE.SphereGeometry(HashSimulation.radius(), 8, 8);
-        this.mesh = new THREE.InstancedMesh(geometry, material, HashSimulation.num_bodies());
+        const geometry = new THREE.SphereGeometry(HashSimulation.radius, 8, 8);
+        this.mesh = new THREE.InstancedMesh(geometry, material, this.sim.num_bodies);
         this.translationMatrix = new THREE.Matrix4();
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.colors = new Float32Array(3 * HashSimulation.num_bodies());
+        this.colors = new Float32Array(3 * this.sim.num_bodies);
         this.mesh.instanceColor = new THREE.InstancedBufferAttribute(this.colors, 3, false, 1);
         this.scene.scene.add(this.mesh);
 
         // Here, we store the pointer to the positions buffer location after the simulation is
-        // initialized (all allocations are completed). In the WASM linear heap, it will be 
-        // constant thereafter, so we don't need to touch the array moving forward.
-        const positionsPtr = this.sim.body_positions_ptr();
-        this.positions = new Float32Array(memory.buffer, positionsPtr, HashSimulation.num_bodies() * 3);
-        const collisionsPtr = this.sim.body_collisions_ptr();
-        this.collisions = new Uint8Array(memory.buffer, collisionsPtr, HashSimulation.num_bodies());
+        // initialized (all allocations are completed). In the WASM linear heap, it will be constant 
+        // thereafter, so we don't need to refresh the pointer moving forward.
+        const positionsPtr = this.sim.pos;
+        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_bodies * 3);
+        const collisionsPtr = this.sim.collisions;
+        this.collisions = new Uint8Array(memory.buffer, collisionsPtr, this.sim.num_bodies);
 
         this.updateMesh();
     }

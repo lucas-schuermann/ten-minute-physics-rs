@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 import { ClothSimulation } from '../pkg';
 import { memory } from '../pkg/index_bg.wasm';
-import { Demo, Scene, SceneConfig, Grabber } from './lib';
+import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 15;
 const DEFAULT_BENDING_COMPLIANCE = 1.0;
@@ -19,22 +19,23 @@ type ClothDemoProps = {
     stretchingCompliance: number;
 };
 
-const ClothDemoConfig: SceneConfig = {
+const ClothDemoConfig: Scene3DConfig = {
+    kind: '3D',
     cameraYZ: [1, 1],
     cameraLookAt: new THREE.Vector3(0, 0.6, 0),
 }
 
 class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     sim: ClothSimulation;
-    scene: Scene;
+    scene: Scene3D;
     props: ClothDemoProps;
 
     private grabber: Grabber;
     private edgeMesh: THREE.LineSegments;
     private triMesh: THREE.Mesh;
-    private positions: Float32Array;
+    private positions: Float32Array; // mapped to WASM memory
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene, folder: GUI) {
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.ClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCHING_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -48,7 +49,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         if (this.props.animate) {
             this.sim.step();
             this.updateMesh();
-            this.grabber.increaseTime(this.sim.dt());
+            this.grabber.increaseTime(this.sim.dt);
         }
     }
 
@@ -59,8 +60,8 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
-            triangles: this.sim.num_tris(),
-            vertices: this.sim.num_particles(),
+            triangles: this.sim.num_tris,
+            vertices: this.sim.num_particles,
             animate: true,
             showEdges: false,
             substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
@@ -69,9 +70,9 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         };
         folder.add(this.props, 'triangles').disable();
         folder.add(this.props, 'vertices').disable();
-        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => this.sim.set_solver_substeps(v));
-        folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => this.sim.set_bending_compliance(v));
-        folder.add(this.props, 'stretchingCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => this.sim.set_stretching_compliance(v));
+        folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => (this.sim.solver_substeps = v));
+        folder.add(this.props, 'bendingCompliance').name('bend compliance').min(0).max(10).step(0.1).onChange((v: number) => (this.sim.bending_compliance = v));
+        folder.add(this.props, 'stretchingCompliance').name('stretch compliance').min(0).max(1).step(0.01).onChange((v: number) => (this.sim.stretching_compliance = v));
         folder.add(this.props, 'showEdges').name('show edges').onChange((s: boolean) => {
             this.edgeMesh.visible = s;
             this.triMesh.visible = !s;
@@ -83,17 +84,17 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     }
 
     private initMesh() {
-        const tri_ids = Array.from(this.sim.mesh_tri_ids());
-        const edge_ids = Array.from(this.sim.mesh_edge_ids());
+        const tri_ids = Array.from(this.sim.tri_ids);
+        const edge_ids = Array.from(this.sim.edge_ids);
 
-        // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
+        // NOTE: ordering matters here. The above sim.*_ids getters are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
         // occurs and therefore the location in memory for particle positions could change. Here, we
         // store the pointer to the positions buffer location after these allocs. In the WASM
-        // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
-        // forward.
-        const positionsPtr = this.sim.particle_positions_ptr();
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles() * 3);
+        // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
+        // moving forward.
+        const positionsPtr = this.sim.pos;
+        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
 
         // edge mesh
         let geometry = new THREE.BufferGeometry();
@@ -114,6 +115,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         this.triMesh.layers.enable(1);
         this.scene.scene.add(this.triMesh);
         geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
 
         this.updateMesh();
     }

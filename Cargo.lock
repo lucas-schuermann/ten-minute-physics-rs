@@ -40,21 +40,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo"
-version = "0.0.0"
-dependencies = [
- "cgmath",
- "getrandom",
- "glam",
- "js-sys",
- "once_cell",
- "rand",
- "solver",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -108,9 +93,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.16.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
+checksum = "6f61fba1741ea2b3d6a1e3178721804bb716a68a6aeba1149b5d52e3d464ea66"
 
 [[package]]
 name = "ppv-lite86"
@@ -167,14 +152,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solver"
-version = "0.0.0"
-dependencies = [
- "glam",
- "rand",
-]
-
-[[package]]
 name = "syn"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -183,6 +160,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "ten-minute-physics-rs"
+version = "0.1.0"
+dependencies = [
+ "cgmath",
+ "getrandom",
+ "glam",
+ "js-sys",
+ "once_cell",
+ "rand",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
