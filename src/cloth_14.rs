@@ -15,7 +15,7 @@ pub struct ClothSimulation {
     #[wasm_bindgen(readonly)]
     pub num_tris: usize,
     #[wasm_bindgen(readonly)]
-    pub num_substeps: usize,
+    pub num_substeps: u8,
     #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
@@ -98,7 +98,7 @@ fn find_tri_neighbors(tri_ids: &Vec<[usize; 3]>) -> Vec<Option<usize>> {
 impl ClothSimulation {
     #[must_use]
     #[wasm_bindgen(constructor)]
-    pub fn new(num_substeps: usize, bending_compliance: f32, stretching_compliance: f32) -> Self {
+    pub fn new(num_substeps: u8, bending_compliance: f32, stretching_compliance: f32) -> Self {
         let mesh = mesh::get_cloth();
         let num_particles = mesh.vertices.len();
         let num_tris = mesh.tri_ids.len();
@@ -109,7 +109,7 @@ impl ClothSimulation {
         let mut edge_ids = vec![];
         let mut tri_pair_ids = vec![];
 
-        for i in 0..(num_tris) {
+        for i in 0..num_tris {
             for j in 0..3 {
                 let id0 = mesh.tri_ids[i][j];
                 let id1 = mesh.tri_ids[i][(j + 1) % 3];
@@ -131,7 +131,7 @@ impl ClothSimulation {
             }
         }
 
-        let dt = TIME_STEP / num_substeps as f32;
+        let dt = TIME_STEP / Into::<f32>::into(num_substeps);
         let mut cloth = Self {
             num_particles,
             num_tris,
@@ -189,9 +189,9 @@ impl ClothSimulation {
     }
 
     #[wasm_bindgen(setter)]
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
         self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32;
+        self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
     }
 

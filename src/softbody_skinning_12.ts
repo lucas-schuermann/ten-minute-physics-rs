@@ -35,8 +35,8 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     private grabber: Grabber;
     private tetMesh: THREE.LineSegments;
     private surfaceMesh: THREE.Mesh;
-    private tetPositions: Float32Array;
-    private surfacePositions: Float32Array;
+    private tetPositions: Float32Array; // mapped to WASM memory
+    private surfacePositions: Float32Array; // mapped to WASM memory
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.SkinnedSoftbodySimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
@@ -99,12 +99,12 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         const tet_edge_ids = Array.from(this.sim.edge_ids);
         const surface_tri_ids = Array.from(this.sim.surface_tri_ids);
 
-        // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
+        // NOTE: ordering matters here. The above sim.*_ids getters are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
         // occurs and therefore the location in memory for particle positions could change. Here, we
         // store the pointer to the positions buffer location after these allocs. In the WASM
-        // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
-        // forward.
+        // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
+        // moving forward.
         const tetPositionsPtr = this.sim.pos;
         this.tetPositions = new Float32Array(memory.buffer, tetPositionsPtr, this.sim.num_particles * 3);
         const surfacePositionsPtr = this.sim.surface_pos;
@@ -129,6 +129,7 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         this.surfaceMesh.layers.enable(1);
         this.scene.scene.add(this.surfaceMesh);
         geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
 
         this.updateMesh();
     }

@@ -42,7 +42,7 @@ pub struct SelfCollisionSimulation {
     pub num_particles: usize,
     #[wasm_bindgen(readonly)]
     pub num_tris: usize,
-    num_substeps: usize,
+    num_substeps: u8,
     #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
@@ -76,7 +76,7 @@ impl SelfCollisionSimulation {
     #[must_use]
     #[wasm_bindgen(constructor)]
     pub fn new(
-        num_substeps: usize,
+        num_substeps: u8,
         bending_compliance: f32,
         stretch_compliance: f32,
         shear_compliance: f32,
@@ -102,7 +102,7 @@ impl SelfCollisionSimulation {
             }
         }
 
-        let dt = TIME_STEP / num_substeps as f32;
+        let dt = TIME_STEP / Into::<f32>::into(num_substeps);
         let mut cloth = Self {
             num_particles,
             num_tris: tri_ids.len(),
@@ -188,9 +188,9 @@ impl SelfCollisionSimulation {
     }
 
     #[wasm_bindgen(setter)]
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
         self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32;
+        self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
         self.max_vel = VEL_LIMIT_MULTIPLIER * self.thickness / self.dt;
     }
@@ -234,7 +234,7 @@ impl SelfCollisionSimulation {
     pub fn step(&mut self) {
         if self.handle_collisions {
             self.hash.create(&self.pos);
-            let max_dist = self.max_vel * self.dt * self.num_substeps as f32;
+            let max_dist = self.max_vel * self.dt * Into::<f32>::into(self.num_substeps);
             self.hash.query_all(&self.pos, max_dist);
         }
 

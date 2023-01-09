@@ -21,7 +21,7 @@ pub struct SkinnedSoftbodySimulation {
     pub num_tets: usize,
     #[wasm_bindgen(readonly)]
     pub num_surface_verts: usize,
-    num_substeps: usize,
+    num_substeps: u8,
     #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
@@ -52,12 +52,12 @@ pub struct SkinnedSoftbodySimulation {
 impl SkinnedSoftbodySimulation {
     #[must_use]
     #[wasm_bindgen(constructor)]
-    pub fn new(num_substeps: usize, edge_compliance: f32, vol_compliance: f32) -> Self {
+    pub fn new(num_substeps: u8, edge_compliance: f32, vol_compliance: f32) -> Self {
         let mesh = mesh::get_dragon();
         let num_particles = mesh.tet_vertices.len();
         let num_tets = mesh.tet_ids.len();
         let num_surface_verts = mesh.surface_vertices.len();
-        let dt = TIME_STEP / num_substeps as f32;
+        let dt = TIME_STEP / Into::<f32>::into(num_substeps);
         let mut body = Self {
             num_particles,
             num_tris: mesh.surface_tri_ids.len() / 3,
@@ -129,9 +129,9 @@ impl SkinnedSoftbodySimulation {
     }
 
     #[wasm_bindgen(setter)]
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
         self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32;
+        self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
     }
 

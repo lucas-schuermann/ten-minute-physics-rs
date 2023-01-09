@@ -28,8 +28,8 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
     private mesh: THREE.InstancedMesh;
     private translationMatrix: THREE.Matrix4;
     private colors: Float32Array;
-    private positions: Float32Array;
-    private collisions: Uint8Array;
+    private positions: Float32Array; // mapped to WASM memory
+    private collisions: Uint8Array; // mapped to WASM memory
 
     constructor(rust_wasm: any, _: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.HashSimulation();
@@ -75,8 +75,8 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
         this.scene.scene.add(this.mesh);
 
         // Here, we store the pointer to the positions buffer location after the simulation is
-        // initialized (all allocations are completed). In the WASM linear heap, it will be 
-        // constant thereafter, so we don't need to touch the array moving forward.
+        // initialized (all allocations are completed). In the WASM linear heap, it will be constant 
+        // thereafter, so we don't need to refresh the pointer moving forward.
         const positionsPtr = this.sim.pos;
         this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_bodies * 3);
         const collisionsPtr = this.sim.collisions;

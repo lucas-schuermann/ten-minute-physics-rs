@@ -12,7 +12,7 @@ const VOL_ID_ORDER: [[usize; 3]; 4] = [[1, 3, 2], [0, 2, 3], [0, 3, 1], [0, 1, 2
 pub struct SoftBody {
     pub num_particles: usize,
     pub num_tets: usize,
-    num_substeps: usize,
+    num_substeps: u8,
     pub dt: f32,
     inv_dt: f32,
 
@@ -36,7 +36,7 @@ pub struct SoftBody {
 impl SoftBody {
     #[must_use]
     pub fn new(
-        num_substeps: usize,
+        num_substeps: u8,
         edge_compliance: f32,
         vol_compliance: f32,
         mesh: &TetMeshData,
@@ -44,7 +44,7 @@ impl SoftBody {
         let num_particles = mesh.vertices.len();
         let num_tets = mesh.tet_ids.len();
         let num_edges = mesh.tet_edge_ids.len();
-        let dt = TIME_STEP / num_substeps as f32;
+        let dt = TIME_STEP / Into::<f32>::into(num_substeps);
         let mut body = Self {
             num_particles,
             num_tets,
@@ -72,9 +72,9 @@ impl SoftBody {
         body
     }
 
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
         self.num_substeps = num_substeps;
-        self.dt = TIME_STEP / num_substeps as f32;
+        self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
     }
 
@@ -252,7 +252,7 @@ impl SoftBody {
 #[wasm_bindgen]
 pub struct SoftBodiesSimulation {
     bodies: Vec<SoftBody>,
-    num_substeps: usize,
+    num_substeps: u8,
     edge_compliance: f32,
     vol_compliance: f32,
     // stored for reset
@@ -263,7 +263,7 @@ pub struct SoftBodiesSimulation {
 impl SoftBodiesSimulation {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        num_substeps: usize,
+        num_substeps: u8,
         edge_compliance: f32,
         vol_compliance: f32,
     ) -> SoftBodiesSimulation {
@@ -355,7 +355,7 @@ impl SoftBodiesSimulation {
     }
 
     #[wasm_bindgen(setter)]
-    pub fn set_solver_substeps(&mut self, num_substeps: usize) {
+    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
         self.bodies
             .iter_mut()
             .for_each(|b| b.set_solver_substeps(num_substeps));

@@ -113,10 +113,11 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
         const surfaceMesh = new THREE.Mesh(geometry, visMaterial);
         surfaceMesh.castShadow = true;
         surfaceMesh.layers.enable(1);
-        surfaceMesh.userData = { 'id': id }; // for raycasting
+        surfaceMesh.userData = { id }; // for raycasting
         this.scene.scene.add(surfaceMesh);
         this.surfaceMeshes.push(surfaceMesh);
         geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
 
         this.props.tets = this.sim.num_tets;
         this.tetsController.updateDisplay();
@@ -125,6 +126,7 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     }
 
     private updateMesh(id: number) {
+        // mapped to WASM memory, see comment in `initMesh`
         const positionsPtr = this.sim.pos(id);
         const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
         this.surfaceMeshes[id].geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));

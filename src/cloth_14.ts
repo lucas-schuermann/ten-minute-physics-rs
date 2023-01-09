@@ -33,7 +33,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     private grabber: Grabber;
     private edgeMesh: THREE.LineSegments;
     private triMesh: THREE.Mesh;
-    private positions: Float32Array;
+    private positions: Float32Array; // mapped to WASM memory
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
         this.sim = new rust_wasm.ClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCHING_COMPLIANCE);
@@ -87,12 +87,12 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         const tri_ids = Array.from(this.sim.tri_ids);
         const edge_ids = Array.from(this.sim.edge_ids);
 
-        // NOTE: ordering matters here. The above sim.*_ids() getter methods are lazily implemented and 
+        // NOTE: ordering matters here. The above sim.*_ids getters are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
         // occurs and therefore the location in memory for particle positions could change. Here, we
         // store the pointer to the positions buffer location after these allocs. In the WASM
-        // linear heap, it will be constant thereafter, so we don't need to touch the array moving 
-        // forward.
+        // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
+        // moving forward.
         const positionsPtr = this.sim.pos;
         this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
 
@@ -115,6 +115,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         this.triMesh.layers.enable(1);
         this.scene.scene.add(this.triMesh);
         geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
 
         this.updateMesh();
     }

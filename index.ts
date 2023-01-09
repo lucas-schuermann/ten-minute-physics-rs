@@ -65,20 +65,13 @@ import('./pkg').then(rust_wasm => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         canvas.focus();
-        context.fillStyle = "blue";
-        context.fillRect(0, 0, canvas.width, canvas.height);
         return { kind: '2D', width: canvas.width, height: canvas.height, context };
     }
 
     const initThreeScene = (config: Scene3DConfig): Scene3D => {
-        let scene: THREE.Scene;
-        let camera: THREE.Camera;
-        let renderer: THREE.WebGLRenderer;
-        let controls: OrbitControls;
-
         replaceCanvas();
 
-        scene = new THREE.Scene();
+        const scene = new THREE.Scene();
 
         // lights
         scene.add(new THREE.AmbientLight(0x505050));
@@ -124,18 +117,18 @@ import('./pkg').then(rust_wasm => {
         scene.add(helper);
 
         // renderer
-        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
         renderer.shadowMap.enabled = true;
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        // Camera
-        camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
+        // camera
+        const camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
         camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
         camera.updateMatrixWorld();
         scene.add(camera);
 
-        controls = new OrbitControls(camera, renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
         controls.zoomSpeed = 2.0;
         controls.panSpeed = 0.4;
         controls.target = config.cameraLookAt;
@@ -144,6 +137,24 @@ import('./pkg').then(rust_wasm => {
         return { kind: '3D', scene, camera, renderer, controls };
     };
 
+    let resizeTimer: NodeJS.Timeout; // limit 2d resize events to once per 250ms
+    window.addEventListener('resize', () => {
+        if (scene.kind === "3D") {
+            // for 3d, THREE.js can non-destructively update the renderer
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            scene.camera.aspect = width / height;
+            scene.camera.updateProjectionMatrix();
+            scene.renderer.setSize(width, height);
+        } else {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                // for 2d, we generally need to reload the demo
+                initDemo(props.demoSelection);
+            }, 250);
+        }
+    });
+
     // attach perf stats window
     const stats = new Stats();
     stats.dom.style.position = 'absolute';
@@ -151,33 +162,33 @@ import('./pkg').then(rust_wasm => {
     $('container').appendChild(stats.dom);
 
     // populate controls window
-    const gui = new GUI({ autoPlace: false });
-    gui.domElement.style.opacity = '0.9';
-    $('gui').appendChild(gui.domElement);
-    let props = {
+    const props = {
         demoSelection: demoNames[0],
         reset: () => demo.reset(),
     }
+    const gui = new GUI({ autoPlace: false });
+    gui.domElement.style.opacity = '0.9';
+    $('gui').appendChild(gui.domElement);
     const generalFolder = gui.addFolder('General');
     let demoFolder: GUI;
-    const initDemo = (s: string) => {
+    const initDemo = (sid: string) => {
         if (demoFolder) demoFolder.destroy();
         demoFolder = gui.addFolder('Demo Settings');
-        const config = demos[s].config;
+        const config = demos[sid].config;
         if (config.kind === "3D") {
             scene = initThreeScene(config);
         } else {
             scene = initCanvasScene(config);
         }
-        $('title').innerText = demos[s].title;
-        demo = new demos[s].demo(rust_wasm, canvas, scene, demoFolder);
+        $('title').innerText = demos[sid].title;
+        demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);
         demo.init();
     }
     generalFolder.add(props, 'demoSelection', demoNames).name('select demo').onFinishChange(initDemo);
     generalFolder.add(props, 'reset').name('reset simulation');
 
     // default init
-    initDemo(demoNames[0]);
+    initDemo(props.demoSelection);
 
     // main loop
     const step = () => {

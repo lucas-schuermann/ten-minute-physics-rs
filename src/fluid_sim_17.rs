@@ -1,7 +1,11 @@
+use std::f64::consts::PI;
+
 use glam::Vec2;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::Clamped;
+use web_sys::{CanvasRenderingContext2d, ImageData};
 
-pub const SIM_HEIGHT: f32 = 1.0;
+const SIM_HEIGHT: f32 = 1.0;
 
 #[wasm_bindgen]
 #[derive(PartialEq)]
@@ -12,22 +16,8 @@ pub enum SceneType {
     Paint,
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy)]
-pub struct Parameters {
-    pub width: usize,
-    pub height: usize,
-    pub density: f32,
-    pub h: f32,
-    pub gravity: f32,
-    pub dt: f32,
-    pub num_iters: usize,
-    pub over_relaxation: f32,
-}
-
-#[wasm_bindgen]
-#[derive(Clone, Copy)]
-pub enum Field {
+enum Field {
     U,
     V,
     S,
@@ -35,16 +25,21 @@ pub enum Field {
 
 #[wasm_bindgen]
 pub struct FluidSimulation {
-    pub params: Parameters,
+    #[wasm_bindgen(readonly)]
+    pub density: f32,
+    h: f32,
+    gravity: f32,
+    #[wasm_bindgen(readonly)]
+    pub dt: f32,
+    pub num_iters: usize,
+    pub over_relaxation: f32,
 
     obstacle_pos: Vec2,
-    pub obstacle_radius: f32,
-    frame_number: usize,
+    obstacle_radius: f32,
+    frame_number: f32, // store as f32 to be used in sin modulation
 
-    #[wasm_bindgen(readonly)]
-    pub num_cells_x: usize,
-    #[wasm_bindgen(readonly)]
-    pub num_cells_y: usize,
+    num_cells_x: usize,
+    num_cells_y: usize,
     #[wasm_bindgen(readonly)]
     pub num_cells: usize,
     u: Vec<f32>,
@@ -57,15 +52,18 @@ pub struct FluidSimulation {
     new_m: Vec<f32>,
 
     // rendering
-    pub width: f32,
-    pub height: f32,
-    pub sim_width: f32,
-    pub sim_height: f32,
-    pub c_scale: f32,
+    width: f32,
+    height: f32,
+    c_scale: f32,
     render_buffer: Vec<u8>,
+    image_data: ImageData,
+    context: CanvasRenderingContext2d,
+    pub show_obstacle: bool,
+    pub show_streamlines: bool,
+    pub show_velocities: bool,
     pub show_pressure: bool,
     pub show_smoke: bool,
-    pub show_smoke_gradient: bool,
+    show_smoke_gradient: bool,
 }
 
 fn set_color_all(color: &mut [u8; 4], val: f32) {
@@ -86,21 +84,29 @@ fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 3] {
     let m = 0.25;
     let num = f32::floor(val / m);
     let s = (val - num * m) / m;
-    let (r, g, b) = match num as usize {
+    let (r, g, b) = match num as u8 {
         0 => (0.0, s, 1.0),
         1 => (0.0, 1.0, 1.0 - s),
         2 => (s, 1.0, 0.0),
         3 => (1.0, 1.0 - s, 0.0),
         _ => (1.0, 0.0, 0.0),
     };
-    return [255.0 * r, 255.0 * g, 255.0 * b];
+    [255.0 * r, 255.0 * g, 255.0 * b]
 }
 
 #[wasm_bindgen]
 impl FluidSimulation {
     #[must_use]
     #[wasm_bindgen(constructor)]
-    pub fn new(scene_type: SceneType, width: f32, height: f32) -> FluidSimulation {
+    pub fn new(
+        scene_type: SceneType,
+        width: f32,
+        height: f32,
+        context: CanvasRenderingContext2d,
+    ) -> FluidSimulation {
+        let width = width.floor();
+        let height = height.floor();
+
         let resolution: f32 = match scene_type {
             SceneType::Tank => 50.0,
             SceneType::HiresTunnel => 200.0,
@@ -111,29 +117,30 @@ impl FluidSimulation {
         let h = domain_height / resolution;
         let num_cells_x = f32::floor(domain_width / h) as usize;
         let num_cells_y = f32::floor(domain_height / h) as usize;
-        let params = Parameters {
-            width: width as usize,
-            height: height as usize,
+
+        let num_cells_x = num_cells_x + 2;
+        let num_cells_y = num_cells_y + 2;
+        let num_cells = num_cells_x * num_cells_y;
+
+        let render_buffer = vec![255; width as usize * height as usize * 4]; // rgba
+        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(&render_buffer),
+            width as u32,
+            height as u32,
+        )
+        .expect("failed to create image data mapped to render buffer");
+
+        let mut fluid = Self {
             density: 1000.0,
             h,
             gravity: -9.81,
             dt: 1.0 / 60.0,
             num_iters: 40,
             over_relaxation: 1.9,
-        };
 
-        let num_cells_x = num_cells_x + 2;
-        let num_cells_y = num_cells_y + 2;
-        let num_cells = num_cells_x * num_cells_y;
-
-        let sim_height = SIM_HEIGHT;
-        let width = params.width as f32;
-        let height = params.height as f32;
-
-        let mut fluid = Self {
             obstacle_pos: Vec2::ZERO,
             obstacle_radius: 0.15,
-            frame_number: 0,
+            frame_number: 0.0,
 
             num_cells_x,
             num_cells_y,
@@ -150,15 +157,16 @@ impl FluidSimulation {
             // rendering
             width,
             height,
-            sim_width: width / height / sim_height,
-            sim_height,
-            c_scale: height as f32 / sim_height,
-            render_buffer: vec![255; width as usize * height as usize * 4], // rgba
+            c_scale: height / domain_height,
+            render_buffer,
+            image_data,
+            context,
+            show_obstacle: true,
+            show_streamlines: false,
+            show_velocities: false,
             show_pressure: false,
             show_smoke: false,
             show_smoke_gradient: false,
-
-            params,
         };
 
         match scene_type {
@@ -168,33 +176,6 @@ impl FluidSimulation {
         }
 
         fluid
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn render_buffer(&self) -> *const u8 {
-        // Generally, this is unsafe! We take care in JS to make sure to
-        // query the positions array pointer after heap allocations have
-        // occurred (which move the location).
-        // Positions is a Vec<u8>, which is a linear array of f32s in
-        // memory.
-        self.render_buffer.as_ptr()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn obstacle_pos(&self) -> Vec<f32> {
-        self.obstacle_pos.to_array().to_vec()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn u(&self) -> *const f32 {
-        // See above comment for `render_buffer` re: safety
-        self.u.as_ptr()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn v(&self) -> *const f32 {
-        // See above comment for `render_buffer` re: safety
-        self.v.as_ptr()
     }
 
     fn setup_tank(&mut self) {
@@ -209,8 +190,8 @@ impl FluidSimulation {
             }
         }
 
-        self.clear_render_buffer();
         self.show_pressure = true;
+        self.show_obstacle = false;
     }
 
     fn setup_tunnel(&mut self, scene_type: SceneType) {
@@ -234,33 +215,31 @@ impl FluidSimulation {
         let max_j = f32::floor(0.5 * self.num_cells_y as f32 + 0.5 * pipe_height) as usize;
 
         for j in min_j..max_j {
-            self.m[j] = 0.0; //solid
+            self.m[j] = 0.0; // solid
         }
 
-        // set obstacle radius?
         self.set_obstacle(&Vec2::new(0.4, 0.5), true, false);
 
-        self.params.gravity = 0.0;
+        self.gravity = 0.0;
 
-        self.clear_render_buffer();
         self.show_smoke = true;
 
         if scene_type == SceneType::HiresTunnel {
-            self.params.dt = 1.0 / 120.0;
-            self.params.num_iters = 100;
+            self.dt = 1.0 / 120.0;
+            self.num_iters = 100;
 
             self.show_pressure = true;
         }
     }
 
     fn setup_paint(&mut self) {
-        self.params.gravity = 0.0;
-        self.params.over_relaxation = 1.0;
+        self.gravity = 0.0;
+        self.over_relaxation = 1.0;
         self.obstacle_radius = 0.1;
 
-        self.clear_render_buffer();
         self.show_smoke = true;
         self.show_smoke_gradient = true;
+        self.show_obstacle = false;
     }
 
     fn integrate(&mut self) {
@@ -268,7 +247,7 @@ impl FluidSimulation {
         for i in 1..self.num_cells_x {
             for j in 1..self.num_cells_y - 1 {
                 if self.s[i * n + j] != 0.0 && self.s[i * n + j - 1] != 0.0 {
-                    self.v[i * n + j] += self.params.gravity * self.params.dt;
+                    self.v[i * n + j] += self.gravity * self.dt;
                 }
             }
         }
@@ -276,8 +255,8 @@ impl FluidSimulation {
 
     fn solve_incompressibility(&mut self) {
         let n = self.num_cells_y;
-        let cp = self.params.density * self.params.h / self.params.dt;
-        for _ in 0..self.params.num_iters {
+        let cp = self.density * self.h / self.dt;
+        for _ in 0..self.num_iters {
             for i in 1..self.num_cells_x - 1 {
                 for j in 1..self.num_cells_y - 1 {
                     if self.s[i * n + j] == 0.0 {
@@ -295,7 +274,7 @@ impl FluidSimulation {
 
                     let div = self.u[(i + 1) * n + j] - self.u[i * n + j] + self.v[i * n + j + 1]
                         - self.v[i * n + j];
-                    let p = -div / s * self.params.over_relaxation;
+                    let p = -div / s * self.over_relaxation;
                     self.p[i * n + j] += cp * p;
 
                     self.u[i * n + j] -= sx0 * p;
@@ -320,9 +299,9 @@ impl FluidSimulation {
     }
 
     #[must_use]
-    pub fn sample_field(&self, x: f32, y: f32, field: Field) -> f32 {
+    fn sample_field(&self, x: f32, y: f32, field: Field) -> f32 {
         let n = self.num_cells_y;
-        let h = self.params.h;
+        let h = self.h;
         let h1 = 1.0 / h;
         let h2 = 0.5 * h;
         let x = x.clamp(h, self.num_cells_x as f32 * h);
@@ -387,9 +366,9 @@ impl FluidSimulation {
         self.new_u.copy_from_slice(&self.u);
         self.new_v.copy_from_slice(&self.v);
 
-        let dt = self.params.dt;
+        let dt = self.dt;
         let n = self.num_cells_y;
-        let h = self.params.h;
+        let h = self.h;
         let h2 = 0.5 * h;
 
         for i in 0..self.num_cells_x {
@@ -429,9 +408,9 @@ impl FluidSimulation {
     fn advect_smoke(&mut self) {
         self.new_m.copy_from_slice(&self.m);
 
-        let dt = self.params.dt;
+        let dt = self.dt;
         let n = self.num_cells_y;
-        let h = self.params.h;
+        let h = self.h;
         let h2 = 0.5 * h;
 
         for i in 1..self.num_cells_x - 1 {
@@ -453,13 +432,13 @@ impl FluidSimulation {
         let mut v = Vec2::ZERO;
 
         if !reset {
-            v = (*pos - self.obstacle_pos) / self.params.dt;
+            v = (*pos - self.obstacle_pos) / self.dt;
         }
 
         self.obstacle_pos = *pos;
         let r = self.obstacle_radius;
         let n = self.num_cells_y;
-        let h = self.params.h;
+        let h = self.h;
 
         for i in 1..self.num_cells_x - 2 {
             for j in 1..self.num_cells_y - 2 {
@@ -470,7 +449,7 @@ impl FluidSimulation {
                 if dx * dx + dy * dy < r * r {
                     self.s[i * n + j] = 0.0;
                     self.m[i * n + j] = if modulate {
-                        0.5 + 0.5 * f32::sin(0.1 * self.frame_number as f32)
+                        0.5 + 0.5 * f32::sin(0.1 * self.frame_number)
                     } else {
                         1.0
                     };
@@ -490,25 +469,18 @@ impl FluidSimulation {
         self.set_obstacle(&pos, reset, modulate);
     }
 
-    pub fn clear_render_buffer(&mut self) {
-        self.render_buffer.fill(255);
-        self.show_pressure = false;
-        self.show_smoke = false;
-        self.show_smoke_gradient = false;
+    #[inline(always)]
+    fn c_x(&self, x: f32) -> f32 {
+        x * self.c_scale
     }
 
     #[inline(always)]
-    pub fn c_x(&self, x: f32) -> f32 {
-        return x * self.c_scale;
-    }
-
-    #[inline(always)]
-    pub fn c_y(&self, y: f32) -> f32 {
-        return self.height - y * self.c_scale;
+    fn c_y(&self, y: f32) -> f32 {
+        self.height - y * self.c_scale
     }
 
     pub fn draw(&mut self) {
-        let h = self.params.h;
+        let h = self.h;
         let cx = f32::floor(self.c_scale * h) as usize + 1;
         let cy = f32::floor(self.c_scale * h) as usize + 1;
         let n = self.num_cells_y;
@@ -553,7 +525,7 @@ impl FluidSimulation {
                 } else if self.s[ind] == 0.0 {
                     color[0..=2].fill(0);
                 }
-                let x = f32::floor(self.c_x((i as f32) * h)) as usize;
+                let x = f32::floor(self.c_x((i as f32 - 1.0) * h)) as usize;
                 let y = f32::floor(self.c_y((j as f32 + 1.0) * h)) as usize;
                 for yi in y..y + cy {
                     let mut p = 4 * (yi * self.width as usize + x);
@@ -567,6 +539,116 @@ impl FluidSimulation {
                 }
             }
         }
+
+        let c = &self.context;
+
+        c.set_fill_style(&JsValue::from("#FFFFFF"));
+        c.fill_rect(0.0, 0.0, self.width.into(), self.height.into());
+
+        c.put_image_data(&self.image_data, 0.0, 0.0)
+            .expect("failed to write render buffer to canvas");
+
+        if self.show_velocities {
+            c.set_stroke_style(&JsValue::from("#000000"));
+            // LVSTODO move to consts
+            let scale = 0.02;
+            let h = self.h;
+            let n = self.num_cells_y;
+
+            for i in 0..self.num_cells_x {
+                for j in 0..self.num_cells_y {
+                    let u = self.u[i * n + j];
+                    let v = self.v[i * n + j];
+
+                    let i = i as f32;
+                    let j = j as f32;
+
+                    c.begin_path();
+                    let x0: f64 = self.c_x(i * h).into();
+                    let x1: f64 = self.c_x(i * h + u * scale).into();
+                    let y: f64 = self.c_y((j + 0.5) * h).into();
+                    c.move_to(x0, y);
+                    c.line_to(x1, y);
+                    c.stroke();
+
+                    c.begin_path();
+                    let x: f64 = self.c_x((i + 0.5) * h).into();
+                    let y0: f64 = self.c_y(j * h).into();
+                    let y1: f64 = self.c_y(j * h + v * scale).into();
+                    c.move_to(x, y0);
+                    c.line_to(x, y1);
+                    c.stroke();
+                }
+            }
+        }
+
+        if self.show_streamlines {
+            // LVSTODO move to consts
+            let seg_len = self.h * 0.2;
+            let num_segs = 15;
+            c.set_stroke_style(&JsValue::from("#000000"));
+
+            for i in (1..(self.num_cells_x - 1)).step_by(5) {
+                for j in (1..(self.num_cells_y - 1)).step_by(5) {
+                    let mut x = (i as f32 + 0.5) * self.h;
+                    let mut y = (j as f32 + 0.5) * self.h;
+                    c.begin_path();
+                    c.move_to(self.c_x(x).into(), self.c_y(y).into());
+                    for _ in 0..num_segs {
+                        let u = self.sample_field(x, y, Field::U);
+                        let v = self.sample_field(x, y, Field::V);
+                        let l = f32::sqrt(u * u + v * v);
+                        x += u / l * seg_len;
+                        y += v / l * seg_len;
+                        x += u * 0.01;
+                        y += v * 0.01;
+                        if x > self.num_cells_x as f32 * self.h {
+                            break;
+                        }
+                        c.line_to(self.c_x(x).into(), self.c_y(y).into());
+                    }
+                    c.stroke();
+                }
+            }
+        }
+
+        if self.show_obstacle {
+            // LVSTODO move to consts
+            let r = self.obstacle_radius + self.h;
+            let o = self.obstacle_pos;
+            if self.show_pressure {
+                c.set_stroke_style(&JsValue::from("#000000"));
+            } else {
+                c.set_stroke_style(&JsValue::from("#DDDDDD"));
+            }
+
+            c.begin_path();
+            c.arc(
+                self.c_x(o[0]).into(),
+                self.c_y(o[1]).into(),
+                (self.c_scale * r).into(),
+                0.0,
+                2.0 * PI,
+            )
+            .unwrap(); // known safe
+            c.close_path();
+            c.fill();
+
+            c.set_line_width(3.0);
+            c.set_stroke_style(&JsValue::from("#000000"));
+            c.begin_path();
+            c.arc(
+                self.c_x(o[0]).into(),
+                self.c_y(o[1]).into(),
+                (self.c_scale * r).into(),
+                0.0,
+                2.0 * PI,
+            )
+            .unwrap(); // known safe
+            c.close_path();
+            c.stroke();
+            c.set_line_width(1.0);
+        }
     }
 
     pub fn step(&mut self) {
@@ -579,7 +661,6 @@ impl FluidSimulation {
         self.advect_vel();
         self.advect_smoke();
 
-        self.draw();
-        self.frame_number += 1;
+        self.frame_number += 1.0;
     }
 }
