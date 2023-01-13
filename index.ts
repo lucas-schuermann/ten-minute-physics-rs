@@ -158,7 +158,9 @@ import('./pkg').then(rust_wasm => {
     // attach perf stats window
     const stats = new Stats();
     stats.dom.style.position = 'absolute';
-    stats.showPanel(1); // ms per frame
+    const simPanel = stats.addPanel(new Stats.Panel('MS (Sim)', '#ff8', '#221'));
+    let maxSimMs = 1;
+    stats.showPanel(stats.dom.children.length - 1); // ms per sim step
     $('container').appendChild(stats.dom);
 
     // populate controls window
@@ -191,14 +193,19 @@ import('./pkg').then(rust_wasm => {
     initDemo(props.demoSelection);
 
     // main loop
-    const step = () => {
+    const animate = () => {
         stats.begin(); // collect perf data for stats.js
-        demo.update(); // 2D scenes draw as part of `update()`
+        let simTimeMs = performance.now();
+        demo.update();
+        simTimeMs = performance.now() - simTimeMs;
         if (scene.kind === "3D") {
             scene.renderer.render(scene.scene, scene.camera);
+        } else {
+            demo.draw();
         }
+        simPanel.update(simTimeMs, (maxSimMs = Math.max(maxSimMs, simTimeMs)));
         stats.end();
-        requestAnimationFrame(step);
+        requestAnimationFrame(animate);
     }
-    requestAnimationFrame(step);
+    requestAnimationFrame(animate);
 }).catch(console.error);

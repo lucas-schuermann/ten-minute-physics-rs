@@ -62,13 +62,16 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         if (this.props.animate) {
             this.sim.step();
         }
-        this.sim.draw();
     }
 
     reset() {
         this.sim.free();
         this.sim = new this.rust_wasm.FluidSimulation(Object.values(SceneType).indexOf(this.props.scene), this.scene.width, this.scene.height, this.scene.context);
         this.init();
+    }
+
+    draw() {
+        this.sim.draw();
     }
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {

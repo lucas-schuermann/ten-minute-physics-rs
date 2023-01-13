@@ -10,6 +10,7 @@ type Demo<S, T> = {
     init(): void;
     update(): void;
     reset(): void;
+    draw?(): void;
 }
 
 type Scene = Scene2D | Scene3D;
