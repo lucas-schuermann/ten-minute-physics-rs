@@ -2,7 +2,7 @@ import GUI from 'lil-gui';
 import * as THREE from 'three';
 
 import { FluidSimulation, SceneType } from '../pkg';
-import { Demo, Scene2D, Scene2DConfig, enumToValueList } from './lib';
+import { Demo, Scene2DCanvas, Scene2DConfig, enumToValueList } from './lib';
 
 const DEFAULT_SCENE = SceneType.WindTunnel;
 
@@ -21,19 +21,19 @@ type FluidDemoProps = {
 };
 
 const FluidDemoConfig: Scene2DConfig = {
-    kind: '2D',
+    kind: '2DCanvas',
 }
 
 class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     sim: FluidSimulation;
-    scene: Scene2D;
+    scene: Scene2DCanvas;
     props: FluidDemoProps;
 
     private rust_wasm: any;
     private mouseDown: boolean;
     private mouseOffset: THREE.Vector2;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2D, folder: GUI) {
+    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2DCanvas, folder: GUI) {
         this.rust_wasm = rust_wasm;
         this.sim = new rust_wasm.FluidSimulation(DEFAULT_SCENE, scene.width, scene.height, scene.context);
         this.scene = scene;

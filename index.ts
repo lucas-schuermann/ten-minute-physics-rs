@@ -6,10 +6,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SelfCollisionDemo, SelfCollisionDemoConfig } from './src/self_collision_15';
 import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
 import { HashDemo, HashDemoConfig } from './src/hashing_11';
-import { Demo, Scene, Scene2D, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig } from './src/lib';
+import { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig } from './src/lib';
 import { SoftBodiesDemo, SoftBodiesDemoConfig } from './src/softbodies_10';
 import { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig } from './src/softbody_skinning_12';
 import { FluidDemo, FluidDemoConfig } from './src/fluid_sim_17';
+import { FlipDemo, FlipDemoConfig } from './src/flip_18';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
@@ -44,6 +45,11 @@ import('./pkg').then(rust_wasm => {
             title: 'Euler Fluid',
             config: FluidDemoConfig,
             demo: FluidDemo,
+        },
+        '18-Flip': {
+            title: 'Flip Fluid',
+            config: FlipDemoConfig,
+            demo: FlipDemo,
         }
     };
     const demoNames = Object.keys(demos);
@@ -58,14 +64,23 @@ import('./pkg').then(rust_wasm => {
         canvas = newCanvas;
     }
 
-    const initCanvasScene = (_: Scene2DConfig): Scene2D => {
+    const init2DScene = (config: Scene2DConfig): Scene2DCanvas | Scene2DWebGL => {
         replaceCanvas();
 
-        let context = canvas.getContext('2d', { desynchronized: true });
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         canvas.focus();
-        return { kind: '2D', width: canvas.width, height: canvas.height, context };
+        let context;
+        let kind = config.kind;
+        if (kind === "2DCanvas") {
+            context = canvas.getContext('2d', { desynchronized: true });
+            return { kind, width: canvas.width, height: canvas.height, context };
+        } else if (kind === "2DWebGL") {
+            context = canvas.getContext('webgl2', { antialias: true, desynchronized: true, powerPreference: "high-performance" });
+            return { kind, width: canvas.width, height: canvas.height, context };
+        } else {
+            throw "unreachable";
+        }
     }
 
     const initThreeScene = (config: Scene3DConfig): Scene3D => {
@@ -180,7 +195,7 @@ import('./pkg').then(rust_wasm => {
         if (config.kind === "3D") {
             scene = initThreeScene(config);
         } else {
-            scene = initCanvasScene(config);
+            scene = init2DScene(config);
         }
         $('title').innerText = demos[sid].title;
         demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);

@@ -118,11 +118,8 @@ impl FluidSimulation {
         let domain_height = SIM_HEIGHT;
         let domain_width = domain_height / height * width;
         let h = domain_height / resolution;
-        let num_cells_x = f32::floor(domain_width / h) as usize;
-        let num_cells_y = f32::floor(domain_height / h) as usize;
-
-        let num_cells_x = num_cells_x + 2;
-        let num_cells_y = num_cells_y + 2;
+        let num_cells_x = f32::floor(domain_width / h) as usize + 2;
+        let num_cells_y = f32::floor(domain_height / h) as usize + 2;
         let num_cells = num_cells_x * num_cells_y;
 
         let render_buffer = vec![255; width as usize * height as usize * 4]; // rgba

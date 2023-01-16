@@ -13,13 +13,20 @@ type Demo<S, T> = {
     draw?(): void;
 }
 
-type Scene = Scene2D | Scene3D;
+type Scene = Scene2DCanvas | Scene2DWebGL | Scene3D;
 
-type Scene2D = {
-    kind: "2D";
+type Scene2DCanvas = {
+    kind: "2DCanvas";
     width: number;
     height: number;
     context: CanvasRenderingContext2D;
+}
+
+type Scene2DWebGL = {
+    kind: "2DWebGL";
+    width: number;
+    height: number;
+    context: WebGL2RenderingContext;
 }
 
 type Scene3D = {
@@ -33,7 +40,7 @@ type Scene3D = {
 type SceneConfig = Scene2DConfig | Scene3DConfig;
 
 type Scene2DConfig = {
-    kind: "2D";
+    kind: "2DCanvas" | "2DWebGL";
 }
 
 type Scene3DConfig = {
@@ -168,4 +175,4 @@ class Grabber {
 // returns ['EnumOne', 'EnumTwo', ...]
 const enumToValueList = (e: any): any => Object.values(e).filter((i) => typeof i === 'string');
 
-export { Demo, Scene, Scene2D, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, enumToValueList };
+export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, enumToValueList };
