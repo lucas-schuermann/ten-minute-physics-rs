@@ -180,7 +180,7 @@ import('./pkg').then(rust_wasm => {
 
     // populate controls window
     const props = {
-        demoSelection: demoNames[0],
+        demoSelection: demoNames.at(-1),
         reset: () => demo.reset(),
     }
     const gui = new GUI({ autoPlace: false });
