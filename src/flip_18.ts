@@ -1,5 +1,5 @@
 import GUI from 'lil-gui';
-//import * as THREE from 'three';
+import * as THREE from 'three';
 
 import { FlipSimulation } from '../pkg';
 import { Demo, Scene2DWebGL, Scene2DConfig } from './lib';
@@ -9,7 +9,6 @@ type FlipDemoProps = {
     animate: boolean;
     numCells: number;
     numParticles: number;
-    numSubsteps: number;
     numParticleIters: number;
     numPressureIters: number;
     flipRatio: number;
@@ -32,7 +31,7 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
     props: FlipDemoProps;
 
     private mouseDown: boolean;
-    //private mouseOffset: THREE.Vector2;
+    private mouseOffset: THREE.Vector2;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2DWebGL, folder: GUI) {
         this.sim = new rust_wasm.FlipSimulation(scene.width, scene.height, scene.context);
@@ -44,7 +43,6 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
         this.props.animate = true;
         this.props.numCells = this.sim.num_cells;
         this.props.numParticles = this.sim.num_particles;
-        this.props.numSubsteps = this.sim.num_substeps;
         this.props.numParticleIters = this.sim.num_particle_iters;
         this.props.numPressureIters = this.sim.num_pressure_iters;
         this.props.flipRatio = this.sim.flip_ratio;
@@ -76,7 +74,6 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
             animate: false,
             numCells: this.sim.num_cells,
             numParticles: this.sim.num_particles,
-            numSubsteps: this.sim.num_substeps,
             numParticleIters: this.sim.num_particle_iters,
             numPressureIters: this.sim.num_pressure_iters,
             flipRatio: this.sim.flip_ratio,
@@ -90,7 +87,6 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
         };
         folder.add(this.props, 'numCells').name('cells').disable().listen();
         folder.add(this.props, 'numParticles').name('particles').disable().listen();
-        folder.add(this.props, 'numSubsteps').name('substeps').disable().listen();
         folder.add(this.props, 'numParticleIters').name('particle substeps').disable().listen();
         folder.add(this.props, 'numPressureIters').name('pressure substeps').disable().listen();
         folder.add(this.props, 'density').disable().listen();
@@ -106,8 +102,8 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
 
         // scene interaction
         this.mouseDown = false;
-        //let rect = canvas.getBoundingClientRect();
-        //this.mouseOffset = new THREE.Vector2(rect.left - canvas.clientLeft, rect.top - canvas.clientTop);
+        let rect = canvas.getBoundingClientRect();
+        this.mouseOffset = new THREE.Vector2(rect.left - canvas.clientLeft, rect.top - canvas.clientTop);
         canvas.addEventListener('mousedown', e => { this.startDrag(e.x, e.y) });
         canvas.addEventListener('touchstart', e => { this.startDrag(e.touches[0].clientX, e.touches[0].clientY) });
         canvas.addEventListener('mouseup', _ => { this.endDrag() });
@@ -120,11 +116,11 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
         });
     }
 
-    private setMousePos(_x: number, _y: number, _reset: boolean) {
-        //const mx = x - this.mouseOffset.x;
-        //const my = y - this.mouseOffset.y;
-        //this.sim.set_obstacle_from_canvas(mx, my, reset, this.props.scene === SceneType[SceneType.Paint]);
-        // LVSTODO
+    private setMousePos(x: number, y: number, reset: boolean) {
+        const mx = x - this.mouseOffset.x;
+        const my = y - this.mouseOffset.y;
+        this.sim.set_obstacle_from_canvas(mx, my, reset);
+        this.props.showObstacle = true;
         this.sim.show_obstacle = true;
         this.props.animate = true;
     }

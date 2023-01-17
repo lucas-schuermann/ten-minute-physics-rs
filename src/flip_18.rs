@@ -1,10 +1,18 @@
-#![allow(clippy::many_single_char_names, clippy::similar_names)]
+#![allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::cast_possible_wrap
+)]
+
+use std::f32::consts::PI;
 
 use glam::{UVec2, Vec2, Vec3};
 use wasm_bindgen::prelude::*;
 use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlShader, WebGlUniformLocation,
 };
+
+use crate::get_sci_color;
 
 const SIM_HEIGHT: f32 = 3.0;
 
@@ -84,6 +92,8 @@ struct Renderer {
     particle_program: WebGlProgram,
     particle_buffer: WebGlBuffer,
     particle_color_buffer: WebGlBuffer,
+    grid_buffer: WebGlBuffer,
+    grid_color_buffer: WebGlBuffer,
     particle_position_attrib_location: u32,
     particle_color_attrib_location: u32,
     particle_point_size_uniform: WebGlUniformLocation,
@@ -91,21 +101,18 @@ struct Renderer {
     particle_mode_draw_disk_uniform: WebGlUniformLocation,
 
     mesh_program: WebGlProgram,
-    //     grid_buffer: WebGlBuffer,
-    //     grid_color_buffer: WebGlBuffer,
-    //     mesh_position_attrib_location: u32,
-    //     mesh_domain_size_uniform: WebGlUniformLocation,
-    //     mesh_color_uniform: WebGlUniformLocation,
-    //     mesh_translation_uniform: WebGlUniformLocation,
-    //     mesh_scale_uniform: WebGlUniformLocation,
-    //
-    //     disk_buffer: WebGlBuffer,
-    //     disk_id_buffer: WebGlBuffer,
+    disk_buffer: WebGlBuffer,
+    disk_id_buffer: WebGlBuffer,
+    mesh_position_attrib_location: u32,
+    mesh_domain_size_uniform: WebGlUniformLocation,
+    mesh_color_uniform: WebGlUniformLocation,
+    mesh_translation_uniform: WebGlUniformLocation,
+    mesh_scale_uniform: WebGlUniformLocation,
 }
 
 #[wasm_bindgen]
 impl FlipSimulation {
-    #[must_use]
+    #[allow(clippy::too_many_lines)]
     #[wasm_bindgen(constructor)]
     pub fn new(
         width: f32,
@@ -142,7 +149,15 @@ impl FlipSimulation {
                 as usize;
         let num_particles = num_particles_x * num_particles_y;
 
-        let renderer = init_webgl(context, width as i32, height as i32, num_particles)?;
+        let renderer = init_webgl(
+            context,
+            width as i32,
+            height as i32,
+            num_cells_x,
+            num_cells_y,
+            h,
+            num_particles,
+        )?;
 
         let mut fluid = Self {
             density: 1000.0,
@@ -230,7 +245,8 @@ impl FlipSimulation {
             }
         }
 
-        // LVSTODO set obstacle (3.0, 2.0, true);
+        // move obstacle out of the way for dam break
+        fluid.set_obstacle(Vec2::new(3.0, 2.0), true);
 
         Ok(fluid)
     }
@@ -384,6 +400,7 @@ impl FlipSimulation {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn transfer_velocities(&mut self, to_grid: bool) {
         let n = self.num_cells_y;
         let h = self.h;
@@ -565,10 +582,10 @@ impl FlipSimulation {
         if self.particle_rest_density == 0.0 {
             let mut sum = 0.0;
             let mut num_fluid_cells = 0.0;
-            for i in 0..self.num_cells {
+            for (i, id) in d.iter().enumerate() {
                 if self.cell_kind[i] == CellKind::Fluid {
-                    sum += d[i];
-                    num_fluid_cells += 1.0
+                    sum += id;
+                    num_fluid_cells += 1.0;
                 }
             }
 
@@ -614,7 +631,7 @@ impl FlipSimulation {
                         let compression =
                             self.particle_density[i * n + j] - self.particle_rest_density;
                         if compression > 0.0 {
-                            div = div - k * compression;
+                            div -= k * compression;
                         }
                     }
 
@@ -656,9 +673,22 @@ impl FlipSimulation {
     }
 
     fn update_cell_colors(&mut self) {
-        // LVSTODO
+        self.cell_color.iter_mut().for_each(|c| *c = Vec3::ZERO);
+
+        for i in 0..self.num_cells {
+            if self.cell_kind[i] == CellKind::Solid {
+                self.cell_color[i] = Vec3::splat(0.5);
+            } else if self.cell_kind[i] == CellKind::Fluid {
+                let mut d = self.particle_density[i];
+                if self.particle_rest_density > 0.0 {
+                    d /= self.particle_rest_density;
+                }
+                self.cell_color[i] = get_sci_color(d, 0.0, 2.0).into();
+            }
+        }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn draw(&mut self) {
         self.update_particle_colors();
         self.update_cell_colors();
@@ -667,7 +697,66 @@ impl FlipSimulation {
 
         gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-        // LVSTODO grid
+        let sim_width = self.width / self.c_scale;
+
+        // draw colored grid
+        if self.show_grid {
+            gl.use_program(Some(&self.renderer.particle_program));
+
+            // set uniforms
+            let point_size = 0.9 * self.h / sim_width * self.width;
+            gl.uniform1f(Some(&self.renderer.particle_point_size_uniform), point_size);
+            gl.uniform2f(
+                Some(&self.renderer.particle_domain_size_uniform),
+                sim_width,
+                SIM_HEIGHT,
+            );
+            gl.uniform1i(Some(&self.renderer.particle_mode_draw_disk_uniform), 0);
+
+            // set position buffer
+            set_buffers_and_attributes(
+                gl,
+                &self.renderer.grid_buffer,
+                2,
+                self.renderer.particle_position_attrib_location,
+            );
+
+            // set color buffer
+            set_buffers_and_attributes(
+                gl,
+                &self.renderer.grid_color_buffer,
+                3,
+                self.renderer.particle_color_attrib_location,
+            );
+            unsafe {
+                // Note that `Float32Array::view` is somewhat dangerous (hence the
+                // `unsafe`!). This is creating a raw view into our module's
+                // `WebAssembly.Memory` buffer, but if we allocate more pages for ourself
+                // (aka do a memory allocation in Rust) it'll cause the buffer to change,
+                // causing the `Float32Array` to be invalid.
+                //
+                // As a result, after `Float32Array::view` we have to be very careful not to
+                // do any memory allocations before it's dropped.
+                let colors_f32_view = self.cell_color.as_ptr().cast::<f32>(); // &[Vec3] -> *const Vec3 -> *const f32
+                let colors_array_buf_view = js_sys::Float32Array::view(std::slice::from_raw_parts(
+                    colors_f32_view,
+                    self.num_cells * 3,
+                ));
+                gl.buffer_sub_data_with_i32_and_array_buffer_view(
+                    WebGl2RenderingContext::ARRAY_BUFFER,
+                    0,
+                    &colors_array_buf_view,
+                );
+            }
+
+            // draw
+            gl.draw_arrays(WebGl2RenderingContext::POINTS, 0, self.num_cells as i32);
+
+            // cleanup
+            gl.disable_vertex_attrib_array(self.renderer.particle_position_attrib_location);
+            gl.disable_vertex_attrib_array(self.renderer.particle_color_attrib_location);
+            gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+        }
 
         // draw water particles
         if self.show_particles {
@@ -675,8 +764,7 @@ impl FlipSimulation {
             gl.use_program(Some(&self.renderer.particle_program));
 
             // set uniforms
-            let sim_width = self.width / self.c_scale;
-            let point_size = 0.6 * self.h / sim_width * self.width;
+            let point_size = 2.0 * self.particle_radius / sim_width * self.width;
             gl.uniform1f(Some(&self.renderer.particle_point_size_uniform), point_size);
             gl.uniform2f(
                 Some(&self.renderer.particle_domain_size_uniform),
@@ -693,14 +781,7 @@ impl FlipSimulation {
                 self.renderer.particle_position_attrib_location,
             );
             unsafe {
-                // Note that `Float32Array::view` is somewhat dangerous (hence the
-                // `unsafe`!). This is creating a raw view into our module's
-                // `WebAssembly.Memory` buffer, but if we allocate more pages for ourself
-                // (aka do a memory allocation in Rust) it'll cause the buffer to change,
-                // causing the `Float32Array` to be invalid.
-                //
-                // As a result, after `Float32Array::view` we have to be very careful not to
-                // do any memory allocations before it's dropped.
+                // See comment above for safety
                 let positions_f32_view = self.particle_pos.as_ptr().cast::<f32>(); // &[Vec2] -> *const Vec2 -> *const f32
                 let positions_array_buf_view = js_sys::Float32Array::view(
                     std::slice::from_raw_parts(positions_f32_view, self.num_particles * 2),
@@ -741,6 +822,46 @@ impl FlipSimulation {
             gl.disable_vertex_attrib_array(self.renderer.particle_color_attrib_location);
             gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
         }
+
+        // draw obstacle disk
+        if self.show_obstacle {
+            gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+            gl.use_program(Some(&self.renderer.mesh_program));
+            gl.uniform2f(
+                Some(&self.renderer.mesh_domain_size_uniform),
+                sim_width,
+                SIM_HEIGHT,
+            );
+            gl.uniform3f(Some(&self.renderer.mesh_color_uniform), 1.0, 0.0, 0.0);
+            gl.uniform2fv_with_f32_array(
+                Some(&self.renderer.mesh_translation_uniform),
+                &self.obstacle_pos.to_array(),
+            );
+            gl.uniform1f(
+                Some(&self.renderer.mesh_scale_uniform),
+                self.obstacle_radius + self.particle_radius,
+            );
+
+            set_buffers_and_attributes(
+                gl,
+                &self.renderer.disk_buffer,
+                2,
+                self.renderer.mesh_position_attrib_location,
+            );
+            gl.bind_buffer(
+                WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
+                Some(&self.renderer.disk_id_buffer),
+            );
+            gl.draw_elements_with_i32(
+                WebGl2RenderingContext::TRIANGLES,
+                3 * 50,
+                WebGl2RenderingContext::UNSIGNED_SHORT,
+                0,
+            ); // LVSTODO numsegs to const
+
+            gl.disable_vertex_attrib_array(self.renderer.mesh_position_attrib_location);
+            // LVSTODO bind none array buffers?
+        }
     }
 
     pub fn step(&mut self) {
@@ -756,6 +877,42 @@ impl FlipSimulation {
             self.transfer_velocities(false);
         }
     }
+
+    fn set_obstacle(&mut self, pos: Vec2, reset: bool) {
+        let mut v = Vec2::ZERO;
+
+        if !reset {
+            v = (pos - self.obstacle_pos) / self.dt;
+        }
+
+        self.obstacle_pos = pos;
+        self.obstacle_vel = v;
+        let r = self.obstacle_radius;
+        let n = self.num_cells_y;
+
+        for i in 1..self.num_cells_x - 2 {
+            for j in 1..self.num_cells_y - 2 {
+                self.s[i * n + j] = 1.0;
+                let dx = (i as f32 + 0.5) * self.h - pos.x;
+                let dy = (j as f32 + 0.5) * self.h - pos.y;
+
+                if dx * dx + dy * dy < r * r {
+                    self.s[i * n + j] = 0.0;
+                    self.u[i * n + j] = v.x;
+                    self.u[(i + 1) * n + j] = v.x;
+                    self.v[i * n + j] = v.y;
+                    self.v[i * n + (j + 1)] = v.y;
+                }
+            }
+        }
+    }
+
+    pub fn set_obstacle_from_canvas(&mut self, c_x: f32, c_y: f32, reset: bool) {
+        let x = c_x / self.c_scale;
+        let y = (self.height - c_y) / self.c_scale;
+        let pos = Vec2::new(x, y);
+        self.set_obstacle(pos, reset);
+    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -763,6 +920,9 @@ fn init_webgl(
     context: WebGl2RenderingContext,
     width: i32,
     height: i32,
+    num_cells_x: usize,
+    num_cells_y: usize,
+    h: f32,
     num_particles: usize,
 ) -> Result<Renderer, JsValue> {
     context.viewport(0, 0, width, height);
@@ -890,7 +1050,7 @@ fn init_webgl(
         );
     }
 
-    // preallocate particle color vertex buffer
+    // preallocate particle color buffer
     let particle_color_attrib_location =
         context.get_attrib_location(&particle_program, "color") as u32;
     let particle_color_buffer = context
@@ -902,7 +1062,113 @@ fn init_webgl(
         3,
         particle_color_attrib_location,
     );
-    let zeroed = vec![0.0; num_particles * 3]; // LVSTODO testing
+    let zeroed = vec![0.0; num_particles * 3];
+    unsafe {
+        let colors_array_buf_view = js_sys::Float32Array::view(&zeroed);
+        context.buffer_data_with_array_buffer_view(
+            WebGl2RenderingContext::ARRAY_BUFFER,
+            &colors_array_buf_view,
+            WebGl2RenderingContext::DYNAMIC_DRAW,
+        );
+    }
+
+    // mesh shader uniforms
+    let mesh_domain_size_uniform = context
+        .get_uniform_location(&mesh_program, "domain_size")
+        .expect("Unable to get shader domain size uniform location");
+    let mesh_color_uniform = context
+        .get_uniform_location(&mesh_program, "color")
+        .expect("Unable to get shader color uniform location");
+    let mesh_translation_uniform = context
+        .get_uniform_location(&mesh_program, "translation")
+        .expect("Unable to get shader translation uniform location");
+    let mesh_scale_uniform = context
+        .get_uniform_location(&mesh_program, "scale")
+        .expect("Unable to get shader scale uniform location");
+
+    // prepare disk mesh
+    context.use_program(Some(&mesh_program));
+    let mesh_position_attrib_location =
+        context.get_attrib_location(&mesh_program, "position") as u32;
+    let disk_buffer = context
+        .create_buffer()
+        .ok_or("Failed to create disk buffer")?;
+    set_buffers_and_attributes(&context, &disk_buffer, 2, mesh_position_attrib_location);
+    let num_segs = 50; // LVSTODO move to const
+    let dphi = 2.0 * PI / num_segs as f32;
+    let mut disk_verts: Vec<f32> = Vec::new();
+    disk_verts.push(0.0);
+    disk_verts.push(0.0);
+    for i in 0..num_segs {
+        disk_verts.push(f32::cos(i as f32 * dphi));
+        disk_verts.push(f32::sin(i as f32 * dphi));
+    }
+    unsafe {
+        let disk_verts_buf_view = js_sys::Float32Array::view(&disk_verts);
+        context.buffer_data_with_array_buffer_view(
+            WebGl2RenderingContext::ARRAY_BUFFER,
+            &disk_verts_buf_view,
+            WebGl2RenderingContext::STATIC_DRAW,
+        );
+    }
+
+    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+    let disk_id_buffer = context
+        .create_buffer()
+        .ok_or("Failed to create disk id buffer")?;
+    context.bind_buffer(
+        WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
+        Some(&disk_id_buffer),
+    );
+    let mut disk_ids: Vec<u16> = Vec::new();
+    for i in 0..num_segs {
+        disk_ids.push(0);
+        disk_ids.push(1 + i as u16);
+        disk_ids.push(1 + (i as u16 + 1) % num_segs as u16);
+    }
+    unsafe {
+        let disk_ids_buf_view = js_sys::Uint16Array::view(&disk_ids);
+        context.buffer_data_with_array_buffer_view(
+            WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
+            &disk_ids_buf_view,
+            WebGl2RenderingContext::STATIC_DRAW,
+        );
+    }
+    context.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
+
+    // prepare grid vertex locations
+    context.use_program(Some(&particle_program));
+    let grid_buffer = context
+        .create_buffer()
+        .ok_or("Failed to create grid vertex buffer")?;
+    set_buffers_and_attributes(&context, &grid_buffer, 2, particle_position_attrib_location);
+    let mut cell_centers: Vec<f32> = Vec::new();
+    for i in 0..num_cells_x {
+        for j in 0..num_cells_y {
+            cell_centers.push((i as f32 + 0.5) * h);
+            cell_centers.push((j as f32 + 0.5) * h);
+        }
+    }
+    unsafe {
+        let grid_buffer_view = js_sys::Float32Array::view(&cell_centers);
+        context.buffer_data_with_array_buffer_view(
+            WebGl2RenderingContext::ARRAY_BUFFER,
+            &grid_buffer_view,
+            WebGl2RenderingContext::STATIC_DRAW,
+        );
+    }
+
+    // preallocate grid color buffer
+    let grid_color_buffer = context
+        .create_buffer()
+        .ok_or("Failed to create grid color buffer")?;
+    set_buffers_and_attributes(
+        &context,
+        &grid_color_buffer,
+        3,
+        particle_color_attrib_location,
+    );
+    let zeroed = vec![0.0; num_particles * 3];
     unsafe {
         let colors_array_buf_view = js_sys::Float32Array::view(&zeroed);
         context.buffer_data_with_array_buffer_view(
@@ -918,6 +1184,8 @@ fn init_webgl(
         particle_program,
         particle_buffer,
         particle_color_buffer,
+        grid_buffer,
+        grid_color_buffer,
         particle_position_attrib_location,
         particle_color_attrib_location,
         particle_point_size_uniform,
@@ -925,16 +1193,13 @@ fn init_webgl(
         particle_mode_draw_disk_uniform,
 
         mesh_program,
-        //         grid_buffer: todo!(),
-        //         grid_color_buffer: todo!(),
-        //         mesh_position_attrib_location: todo!(),
-        //         mesh_domain_size_uniform: todo!(),
-        //         mesh_color_uniform: todo!(),
-        //         mesh_translation_uniform: todo!(),
-        //         mesh_scale_uniform: todo!(),
-        //
-        //         disk_buffer: todo!(),
-        //         disk_id_buffer: todo!(),
+        disk_buffer,
+        disk_id_buffer,
+        mesh_position_attrib_location,
+        mesh_domain_size_uniform,
+        mesh_color_uniform,
+        mesh_translation_uniform,
+        mesh_scale_uniform,
     })
 }
 
