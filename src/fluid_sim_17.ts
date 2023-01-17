@@ -41,7 +41,6 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     }
 
     init() {
-        this.props.animate = true;
         this.props.numCells = this.sim.num_cells;
         this.props.numIters = this.sim.num_iters;
         this.props.density = this.sim.density;

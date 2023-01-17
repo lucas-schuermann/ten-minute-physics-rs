@@ -30,17 +30,18 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
     scene: Scene2DWebGL;
     props: FlipDemoProps;
 
+    private rust_wasm: any;
     private mouseDown: boolean;
     private mouseOffset: THREE.Vector2;
 
     constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2DWebGL, folder: GUI) {
+        this.rust_wasm = rust_wasm;
         this.sim = new rust_wasm.FlipSimulation(scene.width, scene.height, scene.context);
         this.scene = scene;
         this.initControls(folder, canvas);
     }
 
     init() {
-        this.props.animate = true;
         this.props.numCells = this.sim.num_cells;
         this.props.numParticles = this.sim.num_particles;
         this.props.numParticleIters = this.sim.num_particle_iters;
@@ -62,7 +63,9 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
     }
 
     reset() {
-        // LVSTODO
+        this.sim.free();
+        this.sim = new this.rust_wasm.FlipSimulation(this.scene.width, this.scene.height, this.scene.context);
+        this.init();
     }
 
     draw() {
@@ -71,7 +74,7 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
-            animate: false,
+            animate: true,
             numCells: this.sim.num_cells,
             numParticles: this.sim.num_particles,
             numParticleIters: this.sim.num_particle_iters,
