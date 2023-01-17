@@ -36,7 +36,7 @@ pub struct Hash {
 impl Hash {
     #[must_use]
     pub fn new(spacing: f32, max_num_objects: usize) -> Self {
-        let table_size = 2 * max_num_objects; // LVSTODO move to param
+        let table_size = 2 * max_num_objects;
         Self {
             inv_spacing: 1.0 / spacing,
             table_size,
@@ -48,7 +48,7 @@ impl Hash {
             // for `query_all`
             max_num_objects,
             first_adj_id: vec![0; max_num_objects + 1],
-            adj_ids: Vec::with_capacity(10 * max_num_objects), // LVSTODO move to const
+            adj_ids: Vec::with_capacity(10 * max_num_objects),
         }
     }
 

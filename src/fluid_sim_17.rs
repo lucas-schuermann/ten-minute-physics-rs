@@ -7,6 +7,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use web_sys::{CanvasRenderingContext2d, ImageData};
 
+use crate::get_sci_color_255;
+
 const SIM_HEIGHT: f32 = 1.0;
 
 #[wasm_bindgen]
@@ -69,32 +71,15 @@ pub struct FluidSimulation {
     show_smoke_gradient: bool,
 }
 
-fn set_color_all(color: &mut [u8; 4], val: f32) {
+fn splat_color(color: &mut [u8; 4], val: f32) {
     let val = f32::floor(val) as u8;
     color[0..=2].fill(val);
 }
 
-fn set_color_elems(dest: &mut [u8; 4], src: &[f32; 3]) {
+fn set_color(dest: &mut [u8; 4], src: &[f32; 3]) {
     dest[0] = f32::floor(src[0]) as u8;
     dest[1] = f32::floor(src[1]) as u8;
     dest[2] = f32::floor(src[2]) as u8;
-}
-
-fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 3] {
-    let mut val = val.clamp(min, max - 0.0001);
-    let d = max - min;
-    val = if d == 0.0 { 0.5 } else { (val - min) / d };
-    let m = 0.25;
-    let num = f32::floor(val / m);
-    let s = (val - num * m) / m;
-    let (r, g, b) = match num as u8 {
-        0 => (0.0, s, 1.0),
-        1 => (0.0, 1.0, 1.0 - s),
-        2 => (s, 1.0, 0.0),
-        3 => (1.0, 1.0 - s, 0.0),
-        _ => (1.0, 0.0, 0.0),
-    };
-    [255.0 * r, 255.0 * g, 255.0 * b]
 }
 
 #[wasm_bindgen]
@@ -118,11 +103,8 @@ impl FluidSimulation {
         let domain_height = SIM_HEIGHT;
         let domain_width = domain_height / height * width;
         let h = domain_height / resolution;
-        let num_cells_x = f32::floor(domain_width / h) as usize;
-        let num_cells_y = f32::floor(domain_height / h) as usize;
-
-        let num_cells_x = num_cells_x + 2;
-        let num_cells_y = num_cells_y + 2;
+        let num_cells_x = f32::floor(domain_width / h) as usize + 2;
+        let num_cells_y = f32::floor(domain_height / h) as usize + 2;
         let num_cells = num_cells_x * num_cells_y;
 
         let render_buffer = vec![255; width as usize * height as usize * 4]; // rgba
@@ -508,9 +490,9 @@ impl FluidSimulation {
                 if self.show_pressure {
                     let p = self.p[ind];
                     let s = self.m[ind];
-                    let sci_color = get_sci_color(p, p_min, p_max);
+                    let sci_color = get_sci_color_255(p, p_min, p_max);
                     if self.show_smoke {
-                        set_color_elems(
+                        set_color(
                             &mut color,
                             &[
                                 f32::max(0.0, sci_color[0] - 255.0 * s),
@@ -519,15 +501,15 @@ impl FluidSimulation {
                             ],
                         );
                     } else {
-                        set_color_elems(&mut color, &sci_color);
+                        set_color(&mut color, &sci_color);
                     }
                 } else if self.show_smoke {
                     let s = self.m[ind];
                     if self.show_smoke_gradient {
-                        let sci_color = get_sci_color(s, 0.0, 1.0);
-                        set_color_elems(&mut color, &sci_color);
+                        let sci_color = get_sci_color_255(s, 0.0, 1.0);
+                        set_color(&mut color, &sci_color);
                     } else {
-                        set_color_all(&mut color, 255.0 * s);
+                        splat_color(&mut color, 255.0 * s);
                     }
                 } else if self.s[ind] == 0.0 {
                     color[0..=2].fill(0);
