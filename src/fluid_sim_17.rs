@@ -61,7 +61,6 @@ pub struct FluidSimulation {
     height: f32,
     c_scale: f32,
     render_buffer: Vec<u8>,
-    image_data: ImageData,
     context: CanvasRenderingContext2d,
     pub show_obstacle: bool,
     pub show_streamlines: bool,
@@ -108,13 +107,6 @@ impl FluidSimulation {
         let num_cells = num_cells_x * num_cells_y;
 
         let render_buffer = vec![255; width as usize * height as usize * 4]; // rgba
-        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
-            Clamped(&render_buffer),
-            width as u32,
-            height as u32,
-        )
-        .expect("failed to create image data mapped to render buffer");
-
         let mut fluid = Self {
             density: 1000.0,
             h,
@@ -144,7 +136,6 @@ impl FluidSimulation {
             height,
             c_scale: height / domain_height,
             render_buffer,
-            image_data,
             context,
 
             show_obstacle: true,
@@ -531,10 +522,13 @@ impl FluidSimulation {
 
         let c = &self.context;
 
-        c.set_fill_style(&JsValue::from("#FFFFFF"));
-        c.fill_rect(0.0, 0.0, self.width.into(), self.height.into());
-
-        c.put_image_data(&self.image_data, 0.0, 0.0)
+        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(&self.render_buffer),
+            self.width as u32,
+            self.height as u32,
+        )
+        .expect("failed to create image data mapped to render buffer");
+        c.put_image_data(&image_data, 0.0, 0.0)
             .expect("failed to write render buffer to canvas");
 
         if self.show_velocities {
@@ -611,6 +605,7 @@ impl FluidSimulation {
                 c.set_stroke_style(&JsValue::from("#DDDDDD"));
             }
 
+            c.set_fill_style(&JsValue::from("#FFFFFF"));
             c.begin_path();
             c.arc(
                 self.c_x(o[0]).into(),

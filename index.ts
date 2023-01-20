@@ -58,6 +58,8 @@ import('./pkg').then(rust_wasm => {
     let scene: Scene;
 
     const replaceCanvas = () => {
+        // some demos modify text color for contrast
+        document.getElementById('info').removeAttribute("style");
         // replace canvas element so we can get a new rendering context
         let newCanvas = document.createElement('canvas');
         canvas.parentNode.replaceChild(newCanvas, canvas);
@@ -69,7 +71,6 @@ import('./pkg').then(rust_wasm => {
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        canvas.focus();
         let context;
         let kind = config.kind;
         if (kind === "2DCanvas") {
@@ -180,7 +181,7 @@ import('./pkg').then(rust_wasm => {
 
     // populate controls window
     const props = {
-        demoSelection: demoNames.at(-1),
+        demoSelection: demoNames.at(-1), // default to latest demo
         reset: () => demo.reset(),
     }
     const gui = new GUI({ autoPlace: false });

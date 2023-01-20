@@ -91,18 +91,28 @@ class Grabber {
         this.vel = new THREE.Vector3();
         this.time = 0.0;
 
-        const onPointer = (e: MouseEvent) => {
+        const getXY = (e: MouseEvent | TouchEvent): [number, number] => {
+            let me = e as MouseEvent;
+            let te = e as TouchEvent;
+            if (me.clientX) {
+                return [me.clientX, me.clientY];
+            } else {
+                return [te.touches[0].clientX, te.touches[0].clientY];
+            }
+        }
+
+        const onInput = (e: MouseEvent | TouchEvent) => {
             e.preventDefault();
-            if (e.type === "pointerdown") {
+            if (e.type === "mousedown" || e.type === "touchstart") {
                 this.mouseDown = true;
-                this.start(e.clientX, e.clientY);
+                this.start(...getXY(e));
                 if (this.intersectedObjectId !== null) {
                     this.scene.controls.saveState();
                     this.scene.controls.enabled = false;
                 }
-            } else if (e.type === "pointermove" && this.mouseDown) {
-                this.move(e.clientX, e.clientY);
-            } else if (e.type === "pointerup") {
+            } else if ((e.type === "mousemove" || e.type === "touchmove") && this.mouseDown) {
+                this.move(...getXY(e));
+            } else if (e.type === "mouseup" || e.type === "touchend") {
                 this.mouseDown = false;
                 this.scene.controls.enabled = true;
                 if (this.intersectedObjectId !== null) {
@@ -111,9 +121,12 @@ class Grabber {
                 }
             }
         }
-        canvas.addEventListener('pointerdown', onPointer, false);
-        canvas.addEventListener('pointermove', onPointer, false);
-        canvas.addEventListener('pointerup', onPointer, false);
+        canvas.addEventListener('mousedown', onInput, false);
+        canvas.addEventListener('touchstart', onInput, false);
+        canvas.addEventListener('mouseup', onInput, false);
+        canvas.addEventListener('touchend', onInput, false);
+        canvas.addEventListener('mousemove', onInput, false);
+        canvas.addEventListener('touchmove', onInput, false);
     }
     increaseTime(dt: number) {
         this.time += dt;

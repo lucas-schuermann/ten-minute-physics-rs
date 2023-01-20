@@ -9,8 +9,6 @@ type FlipDemoProps = {
     animate: boolean;
     numCells: number;
     numParticles: number;
-    numParticleIters: number;
-    numPressureIters: number;
     flipRatio: number;
     density: number;
     overRelaxation: number;
@@ -44,8 +42,6 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
     init() {
         this.props.numCells = this.sim.num_cells;
         this.props.numParticles = this.sim.num_particles;
-        this.props.numParticleIters = this.sim.num_particle_iters;
-        this.props.numPressureIters = this.sim.num_pressure_iters;
         this.props.flipRatio = this.sim.flip_ratio;
         this.props.density = this.sim.density;
         this.props.overRelaxation = this.sim.over_relaxation;
@@ -77,8 +73,6 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
             animate: true,
             numCells: this.sim.num_cells,
             numParticles: this.sim.num_particles,
-            numParticleIters: this.sim.num_particle_iters,
-            numPressureIters: this.sim.num_pressure_iters,
             flipRatio: this.sim.flip_ratio,
             density: this.sim.density,
             overRelaxation: this.sim.over_relaxation,
@@ -90,8 +84,6 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
         };
         folder.add(this.props, 'numCells').name('cells').disable().listen();
         folder.add(this.props, 'numParticles').name('particles').disable().listen();
-        folder.add(this.props, 'numParticleIters').name('particle substeps').disable().listen();
-        folder.add(this.props, 'numPressureIters').name('pressure substeps').disable().listen();
         folder.add(this.props, 'density').disable().listen();
         folder.add(this.props, 'flipRatio').decimals(2).min(0.00).max(1.00).name('flip ratio').onChange((v: number) => (this.sim.flip_ratio = v)).listen();
         folder.add(this.props, 'overRelaxation').decimals(2).min(1.00).max(1.99).name('over relaxation').onChange((v: number) => (this.sim.over_relaxation = v)).listen();

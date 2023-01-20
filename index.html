@@ -3,10 +3,15 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
     <title>Ten Minute Physics in Rust | Lucas V. Schuermann</title>
     <style>
+        html {
+            -webkit-text-size-adjust: none;
+            text-size-adjust: none;
+        }
+
         body {
             margin: 0;
             background-color: #000;
@@ -38,7 +43,7 @@
             position: absolute;
             top: 0px;
             width: 100%;
-            padding: 10px 245px 0px 80px;
+            padding: 10px 255px 0px 90px;
             box-sizing: border-box;
             text-align: center;
             user-select: none;
@@ -55,6 +60,22 @@
             position: absolute;
             top: 0;
             right: 0;
+            z-index: 2 !important;
+        }
+
+        @media all and (max-width: 640px) {
+            #info {
+                padding-right: 10px;
+            }
+
+            #gui {
+                right: auto;
+                top: auto;
+                max-height: 80%;
+                max-width: 80%;
+                bottom: 0;
+                left: 0;
+            }
         }
     </style>
 </head>

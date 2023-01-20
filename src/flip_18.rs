@@ -6,7 +6,7 @@
 
 use std::f32::consts::PI;
 
-use glam::{vec2, vec3, UVec2, Vec2, Vec3};
+use glam::{vec3, UVec2, Vec2, Vec3};
 use wasm_bindgen::prelude::*;
 use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlShader, WebGlUniformLocation,
@@ -21,7 +21,6 @@ const DAM_BREAK_REL_WATER_WIDTH: f32 = 0.6;
 const PARTICLE_CELL_SCALE: f32 = 0.3;
 const PARTICLE_SPACING_SCALE: f32 = 2.2;
 const DEFAULT_OBSTACLE_RADIUS: f32 = 0.15;
-const DEFAULT_OBSTACLE_POSITION: Vec2 = vec2(3.0, 2.0);
 const DEFAULT_DENSITY: f32 = 1000.0;
 const DEFAULT_NUM_SUBSTEPS: usize = 1;
 const DEFAULT_NUM_PRESSURE_ITERS: usize = 50;
@@ -55,8 +54,8 @@ pub struct FlipSimulation {
     #[wasm_bindgen(readonly)]
     pub dt: f32,
     pub num_substeps: usize,
-    pub num_pressure_iters: usize,
-    pub num_particle_iters: usize,
+    num_pressure_iters: usize,
+    num_particle_iters: usize,
     pub flip_ratio: f32,
     pub over_relaxation: f32,
     pub compensate_drift: bool,
@@ -261,7 +260,7 @@ impl FlipSimulation {
         }
 
         // move obstacle out of the way for dam break
-        fluid.set_obstacle(DEFAULT_OBSTACLE_POSITION, true);
+        fluid.set_obstacle(Vec2::new(domain_width * 0.6, domain_height * 0.5), true);
 
         Ok(fluid)
     }

@@ -1,12 +1,14 @@
 use std::cmp::Ordering;
 
 use glam::{vec3, Vec3};
+use rand::Rng;
 use wasm_bindgen::prelude::*;
 
 use crate::mesh::{self, MeshData};
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
+const INITIAL_VEL_SCALING: f32 = 0.0001;
 
 #[wasm_bindgen]
 pub struct ClothSimulation {
@@ -163,6 +165,14 @@ impl ClothSimulation {
         cloth
     }
 
+    fn randomize_vels(&mut self) {
+        // slightly perturb initial velocities for better drop visual
+        let mut rng = rand::thread_rng();
+        self.vel
+            .iter_mut()
+            .for_each(|v| *v = Vec3::splat(rng.gen::<f32>() * INITIAL_VEL_SCALING));
+    }
+
     #[wasm_bindgen(getter)]
     pub fn pos(&self) -> *const Vec3 {
         self.pos.as_ptr()
@@ -184,7 +194,7 @@ impl ClothSimulation {
     pub fn reset(&mut self) {
         self.pos.copy_from_slice(&self.mesh.vertices);
         self.prev.copy_from_slice(&self.pos);
-        self.vel.fill(Vec3::ZERO);
+        self.randomize_vels();
     }
 
     #[wasm_bindgen(setter)]
@@ -240,6 +250,8 @@ impl ClothSimulation {
                 self.inv_mass[i] = 0.0;
             }
         }
+
+        self.randomize_vels();
     }
 
     fn pre_solve(&mut self) {
