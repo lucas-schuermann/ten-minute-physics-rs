@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><title>Ten Minute Physics in Rust | Lucas V. Schuermann</title><style>body {
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,user-scalable=no,minimum-scale=1,maximum-scale=1"><title>Ten Minute Physics in Rust | Lucas V. Schuermann</title><style>body {
             margin: 0;
             background-color: #000;
             color: #fff;
@@ -46,4 +46,20 @@
             position: absolute;
             top: 0;
             right: 0;
+            z-index: 2 !important;
+        }
+
+        @media all and (max-width: 640px) {
+            #info {
+                padding-right: 10px;
+            }
+
+            #gui {
+                right: auto;
+                top: auto;
+                max-height: 80%;
+                max-width: 80%;
+                bottom: 0;
+                left: 0;
+            }
         }</style><script defer="defer" src="./index.js"></script></head><body><div id="info"><a href="https://lucasschuermann.com" target="_blank" rel="noopener">Lucas V. Schuermann</a> - <a href="https://matthias-research.github.io/pages/tenMinutePhysics/index.html" target="_blank" rel="noopener">Ten Minute Physics</a> (XPBD) in Rust - <span id="title">Loading...</span><br><a href="https://github.com/cerrno/ten-minute-physics-rs">View code on GitHub</a></div><div id="container"><canvas id="canvas"><pre>Browser does not support required features</pre></canvas><div id="gui"></div></div></body></html>
