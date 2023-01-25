@@ -4,14 +4,6 @@
     clippy::cast_precision_loss
 )]
 
-extern crate wee_alloc;
-
-// Use `wee_alloc` as the global allocator for small binary size gains. We
-// don't care about allocator performance since we allocate only at the
-// initialization of each demo scene by design.
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[allow(clippy::many_single_char_names)]
 fn get_sci_color(val: f32, min: f32, max: f32) -> [f32; 3] {
     let mut val = val.clamp(min, max - 0.0001);
