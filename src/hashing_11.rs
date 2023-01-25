@@ -26,11 +26,6 @@ pub struct Hash {
     cell_entries: Vec<usize>,
     pub query_ids: Vec<usize>,
     pub query_size: usize,
-
-    // for `query_all`
-    max_num_objects: usize,
-    pub first_adj_id: Vec<usize>,
-    pub adj_ids: Vec<usize>,
 }
 
 impl Hash {
@@ -44,11 +39,6 @@ impl Hash {
             cell_entries: vec![0; max_num_objects],
             query_ids: vec![0; max_num_objects],
             query_size: 0,
-
-            // for `query_all`
-            max_num_objects,
-            first_adj_id: vec![0; max_num_objects + 1],
-            adj_ids: Vec::with_capacity(10 * max_num_objects),
         }
     }
 
@@ -123,30 +113,6 @@ impl Hash {
                 }
             }
         }
-    }
-
-    // for use in `self_collision_15.rs`
-    pub fn query_all(&mut self, positions: &[Vec3], max_dist: f32) {
-        let max_dist_sq = max_dist * max_dist;
-        self.adj_ids.clear();
-        for i in 0..self.max_num_objects {
-            let id0 = i;
-            self.first_adj_id[id0] = self.adj_ids.len();
-            self.query(&positions[id0], max_dist);
-
-            for j in 0..self.query_size {
-                let id1 = self.query_ids[j];
-                if id1 >= id0 {
-                    continue;
-                }
-                let dist_sq = positions[id0].distance_squared(positions[id1]);
-                if dist_sq > max_dist_sq {
-                    continue;
-                }
-                self.adj_ids.push(id1);
-            }
-        }
-        self.first_adj_id[self.max_num_objects] = self.adj_ids.len();
     }
 }
 
