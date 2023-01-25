@@ -51,6 +51,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         this.props.showPressure = this.sim.show_pressure;
         this.props.showSmoke = this.sim.show_smoke;
         if (this.props.scene === SceneType[SceneType.WindTunnel] && this.props.showSmoke === true && this.props.showPressure === false) {
+            // flip text color due to white background
             document.getElementById('info').setAttribute("style", "color: #000;");
         } else {
             document.getElementById('info').removeAttribute("style");

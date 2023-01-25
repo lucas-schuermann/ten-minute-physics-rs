@@ -58,7 +58,7 @@ import('./pkg').then(rust_wasm => {
     let scene: Scene;
 
     const replaceCanvas = () => {
-        // some demos modify text color for contrast
+        // some demos modify text color for contrast; reset
         document.getElementById('info').removeAttribute("style");
         // replace canvas element so we can get a new rendering context
         let newCanvas = document.createElement('canvas');

@@ -9,6 +9,7 @@ const TIME_STEP: f32 = 1.0 / 60.0;
 const VEL_LIMIT_MULTIPLIER: f32 = 0.2;
 const DEFAULT_THICKNESS: f32 = 0.01;
 const SPACING: f32 = 0.01;
+const DAMPING: f32 = 1.0;
 const JITTER: f32 = -2.0 * (0.001 * SPACING) * (0.001 * SPACING);
 const NUM_X: usize = 30;
 const NUM_Y: usize = 200;
@@ -20,6 +21,7 @@ const CONSTRAINTS: [(ConstraintKind, (usize, usize, usize, usize)); 6] = [
     (ConstraintKind::Bending, (0, 0, 0, 2)),
     (ConstraintKind::Bending, (0, 0, 2, 0)),
 ];
+const MAX_ADJ_IDS_MULTIPLIER: usize = 25;
 
 #[derive(Default, Clone, Copy)]
 enum ConstraintKind {
@@ -34,6 +36,56 @@ struct Constraint {
     ids: (usize, usize),
     kind: ConstraintKind,
     rest_len: f32,
+}
+
+pub struct AdjHash {
+    hash: Hash,
+
+    max_num_objects: usize,
+    pub first_adj_id: Vec<usize>,
+    pub adj_ids: Vec<usize>,
+}
+
+impl AdjHash {
+    #[must_use]
+    pub fn new(spacing: f32, max_num_objects: usize) -> Self {
+        Self {
+            hash: Hash::new(spacing, max_num_objects),
+
+            max_num_objects,
+            first_adj_id: vec![0; max_num_objects + 1],
+            adj_ids: Vec::with_capacity(MAX_ADJ_IDS_MULTIPLIER * max_num_objects),
+        }
+    }
+
+    pub fn create(&mut self, positions: &[Vec3]) {
+        self.hash.create(positions);
+    }
+
+    pub fn query_all(&mut self, positions: &[Vec3], max_dist: f32) {
+        let max_dist_sq = max_dist * max_dist;
+        self.adj_ids.clear();
+        for i in 0..self.max_num_objects {
+            let id0 = i;
+            self.first_adj_id[id0] = self.adj_ids.len();
+            self.hash.query(&positions[id0], max_dist);
+
+            for j in 0..self.hash.query_size {
+                let id1 = self.hash.query_ids[j];
+                if id1 >= id0 {
+                    continue;
+                }
+                let dist_sq = positions[id0].distance_squared(positions[id1]);
+                if dist_sq > max_dist_sq {
+                    continue;
+                }
+                if self.adj_ids.len() < self.adj_ids.capacity() {
+                    self.adj_ids.push(id1);
+                }
+            }
+        }
+        self.first_adj_id[self.max_num_objects] = self.adj_ids.len();
+    }
 }
 
 #[wasm_bindgen]
@@ -58,7 +110,7 @@ pub struct SelfCollisionSimulation {
     inv_mass: Vec<f32>,
     thickness: f32,
     pub handle_collisions: bool,
-    hash: Hash,
+    hash: AdjHash,
 
     grab_inv_mass: f32,
     grab_id: Option<usize>,
@@ -121,7 +173,7 @@ impl SelfCollisionSimulation {
             inv_mass: vec![0.0; num_particles],
             thickness: DEFAULT_THICKNESS,
             handle_collisions: true,
-            hash: Hash::new(SPACING, num_particles),
+            hash: AdjHash::new(SPACING, num_particles),
 
             grab_inv_mass: 0.0,
             grab_id: None,
@@ -301,9 +353,8 @@ impl SelfCollisionSimulation {
                 continue;
             }
             if self.pos[i].y < 0.5 * self.thickness {
-                let damping = 1.0;
                 let grad = self.pos[i] - self.prev[i];
-                self.pos[i] += grad * -damping;
+                self.pos[i] += grad * -DAMPING;
                 self.pos[i].y = 0.5 * self.thickness;
             }
         }

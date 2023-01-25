@@ -104,10 +104,10 @@ pub struct FlipSimulation {
     pub show_obstacle: bool,
     pub show_particles: bool,
     pub show_grid: bool,
-    renderer: Renderer,
+    renderer: WebGLRenderer,
 }
 
-struct Renderer {
+struct WebGLRenderer {
     context: WebGl2RenderingContext,
 
     particle_program: WebGlProgram,
@@ -166,7 +166,7 @@ impl FlipSimulation {
         ) as usize;
         let num_particles = num_particles_x * num_particles_y;
 
-        let renderer = Renderer::new(
+        let renderer = WebGLRenderer::new(
             context,
             width as i32,
             height as i32,
@@ -723,7 +723,7 @@ impl FlipSimulation {
             gl.uniform1i(Some(&self.renderer.particle_mode_draw_disk_uniform), 0);
 
             // set position buffer
-            Renderer::set_buffers_and_attributes(
+            WebGLRenderer::set_buffers_and_attributes(
                 gl,
                 &self.renderer.grid_buffer,
                 2,
@@ -731,7 +731,7 @@ impl FlipSimulation {
             );
 
             // set color buffer
-            Renderer::set_buffers_and_attributes(
+            WebGLRenderer::set_buffers_and_attributes(
                 gl,
                 &self.renderer.grid_color_buffer,
                 3,
@@ -784,7 +784,7 @@ impl FlipSimulation {
             gl.uniform1i(Some(&self.renderer.particle_mode_draw_disk_uniform), 1);
 
             // set position buffer
-            Renderer::set_buffers_and_attributes(
+            WebGLRenderer::set_buffers_and_attributes(
                 gl,
                 &self.renderer.particle_buffer,
                 2,
@@ -804,7 +804,7 @@ impl FlipSimulation {
             }
 
             // set color buffer
-            Renderer::set_buffers_and_attributes(
+            WebGLRenderer::set_buffers_and_attributes(
                 gl,
                 &self.renderer.particle_color_buffer,
                 3,
@@ -855,7 +855,7 @@ impl FlipSimulation {
                 self.obstacle_radius + self.particle_radius,
             );
 
-            Renderer::set_buffers_and_attributes(
+            WebGLRenderer::set_buffers_and_attributes(
                 gl,
                 &self.renderer.disk_buffer,
                 2,
@@ -927,7 +927,7 @@ impl FlipSimulation {
     }
 }
 
-impl Renderer {
+impl WebGLRenderer {
     #[allow(clippy::too_many_lines)]
     fn new(
         context: WebGl2RenderingContext,

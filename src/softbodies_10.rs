@@ -8,6 +8,7 @@ const DEFAULT_BODIES_CAPACITY: usize = 10;
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 const VOL_ID_ORDER: [[usize; 3]; 4] = [[1, 3, 2], [0, 2, 3], [0, 3, 1], [0, 1, 2]];
+const SQUASH_TO_Y: f32 = 0.5;
 
 pub struct SoftBody {
     pub num_particles: usize,
@@ -205,7 +206,7 @@ impl SoftBody {
 
     pub fn squash(&mut self) {
         for i in 0..self.num_particles {
-            self.pos[i].y = 0.5;
+            self.pos[i].y = SQUASH_TO_Y;
         }
     }
 

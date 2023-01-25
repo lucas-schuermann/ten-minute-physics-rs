@@ -9,6 +9,7 @@ use crate::mesh::{self, MeshData};
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 const INITIAL_VEL_SCALING: f32 = 0.0001;
+const ATTACHMENT_EPSILON: f32 = 0.0001;
 
 #[wasm_bindgen]
 pub struct ClothSimulation {
@@ -243,10 +244,10 @@ impl ClothSimulation {
             max_y = max_y.max(p.y);
         }
 
-        let eps = 0.0001;
-
         for (i, p) in self.pos.iter().enumerate() {
-            if (p.y > max_y - eps) && (p.x < min_x + eps || p.x > max_x - eps) {
+            if (p.y > max_y - ATTACHMENT_EPSILON)
+                && (p.x < min_x + ATTACHMENT_EPSILON || p.x > max_x - ATTACHMENT_EPSILON)
+            {
                 self.inv_mass[i] = 0.0;
             }
         }

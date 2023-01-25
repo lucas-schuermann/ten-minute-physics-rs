@@ -86,7 +86,7 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
     }
 
     private updateMesh() {
-        for (let i = 0; i < this.positions.length; i++) {
+        for (let i = 0; i < this.props.bodies; i++) {
             this.translationMatrix.makeTranslation(this.positions[3 * i], this.positions[3 * i + 1], this.positions[3 * i + 2]);
             this.mesh.setMatrixAt(i, this.translationMatrix);
             if (this.props.showCollisions && this.collisions[i] === 1) {

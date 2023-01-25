@@ -10,6 +10,19 @@ use web_sys::{CanvasRenderingContext2d, ImageData};
 use crate::get_sci_color_255;
 
 const SIM_HEIGHT: f32 = 1.0;
+const DEFAULT_OBSTACLE_POS: Vec2 = Vec2::ZERO;
+const DEFAULT_OBSTACLE_RADIUS: f32 = 0.15;
+const DEFAULT_DENSITY: f32 = 1000.0;
+const DEFAULT_GRAVITY_Y: f32 = -9.81;
+const DEFAULT_NUM_ITERS: usize = 40;
+const DEFAULT_OVER_RELAXATION: f32 = 1.9;
+const DEFAULT_TIMESTEP: f32 = 1.0 / 60.0;
+const DEFAULT_RESOLUTION: f32 = 100.0;
+const TUNNEL_INPUT_VELOCITY: f32 = 2.0;
+
+const RENDER_LINE_SCALE: f32 = 0.02;
+const STREAMLINE_RESOLUTION_STEP: usize = 5;
+const STREAMLINE_NUM_SEGS: usize = 15;
 
 #[wasm_bindgen]
 #[derive(PartialEq, Clone, Copy)]
@@ -97,7 +110,7 @@ impl FluidSimulation {
         let resolution: f32 = match scene_type {
             SceneType::Tank => 50.0,
             SceneType::HiresTunnel => 200.0,
-            _ => 100.0,
+            _ => DEFAULT_RESOLUTION,
         };
         let domain_height = SIM_HEIGHT;
         let domain_width = domain_height / height * width;
@@ -108,15 +121,15 @@ impl FluidSimulation {
 
         let render_buffer = vec![255; width as usize * height as usize * 4]; // rgba
         let mut fluid = Self {
-            density: 1000.0,
+            density: DEFAULT_DENSITY,
             h,
-            gravity: -9.81,
-            dt: 1.0 / 60.0,
-            num_iters: 40,
-            over_relaxation: 1.9,
+            gravity: DEFAULT_GRAVITY_Y,
+            dt: DEFAULT_TIMESTEP,
+            num_iters: DEFAULT_NUM_ITERS,
+            over_relaxation: DEFAULT_OVER_RELAXATION,
 
-            obstacle_pos: Vec2::ZERO,
-            obstacle_radius: 0.15,
+            obstacle_pos: DEFAULT_OBSTACLE_POS,
+            obstacle_radius: DEFAULT_OBSTACLE_RADIUS,
             frame_number: 0.0,
 
             num_cells_x,
@@ -173,7 +186,6 @@ impl FluidSimulation {
 
     fn setup_tunnel(&mut self, scene_type: SceneType) {
         let n = self.num_cells_y;
-        let input_velocity = 2.0;
         for i in 0..self.num_cells_x {
             for j in 0..self.num_cells_y {
                 let mut s = 1.0; // fluid
@@ -182,7 +194,7 @@ impl FluidSimulation {
                 }
                 self.s[i * n + j] = s;
                 if i == 1 {
-                    self.u[i * n + j] = input_velocity;
+                    self.u[i * n + j] = TUNNEL_INPUT_VELOCITY;
                 }
             }
         }
@@ -464,6 +476,10 @@ impl FluidSimulation {
         let cx = f32::floor(self.c_scale * h) as usize + 1;
         let cy = f32::floor(self.c_scale * h) as usize + 1;
         let n = self.num_cells_y;
+        let black_hex: JsValue = JsValue::from("#000000");
+        let grey_hex: JsValue = JsValue::from("#DDDDDD");
+        let white_hex: JsValue = JsValue::from("#FFFFFF");
+
         let mut color = [255; 4];
 
         let mut p_min = self.p[0];
@@ -510,11 +526,11 @@ impl FluidSimulation {
                 for yi in y..y + cy {
                     let mut p = 4 * (yi * self.width as usize + x);
                     for _ in 0..cx {
-                        // LVSTODO cleaner ways to loop
-                        if p + 3 < self.render_buffer.len() {
-                            self.render_buffer[p..p + 4].copy_from_slice(&color);
-                        }
                         p += 4;
+                        // y-coord extrema are cut off
+                        if p <= self.render_buffer.len() {
+                            self.render_buffer[p - 4..p].copy_from_slice(&color);
+                        }
                     }
                 }
             }
@@ -532,9 +548,7 @@ impl FluidSimulation {
             .expect("failed to write render buffer to canvas");
 
         if self.show_velocities {
-            c.set_stroke_style(&JsValue::from("#000000"));
-            // LVSTODO move to consts
-            let scale = 0.02;
+            c.set_stroke_style(&black_hex);
             let h = self.h;
             let n = self.num_cells_y;
 
@@ -548,7 +562,7 @@ impl FluidSimulation {
 
                     c.begin_path();
                     let x0: f64 = self.c_x(i * h).into();
-                    let x1: f64 = self.c_x(i * h + u * scale).into();
+                    let x1: f64 = self.c_x(i * h + u * RENDER_LINE_SCALE).into();
                     let y: f64 = self.c_y((j + 0.5) * h).into();
                     c.move_to(x0, y);
                     c.line_to(x1, y);
@@ -557,7 +571,7 @@ impl FluidSimulation {
                     c.begin_path();
                     let x: f64 = self.c_x((i + 0.5) * h).into();
                     let y0: f64 = self.c_y(j * h).into();
-                    let y1: f64 = self.c_y(j * h + v * scale).into();
+                    let y1: f64 = self.c_y(j * h + v * RENDER_LINE_SCALE).into();
                     c.move_to(x, y0);
                     c.line_to(x, y1);
                     c.stroke();
@@ -566,18 +580,16 @@ impl FluidSimulation {
         }
 
         if self.show_streamlines {
-            // LVSTODO move to consts
-            let seg_len = self.h * 0.2;
-            let num_segs = 15;
-            c.set_stroke_style(&JsValue::from("#000000"));
+            let seg_len = self.h * RENDER_LINE_SCALE;
+            c.set_stroke_style(&black_hex);
 
-            for i in (1..(self.num_cells_x - 1)).step_by(5) {
-                for j in (1..(self.num_cells_y - 1)).step_by(5) {
+            for i in (1..(self.num_cells_x - 1)).step_by(STREAMLINE_RESOLUTION_STEP) {
+                for j in (1..(self.num_cells_y - 1)).step_by(STREAMLINE_RESOLUTION_STEP) {
                     let mut x = (i as f32 + 0.5) * self.h;
                     let mut y = (j as f32 + 0.5) * self.h;
                     c.begin_path();
                     c.move_to(self.c_x(x).into(), self.c_y(y).into());
-                    for _ in 0..num_segs {
+                    for _ in 0..STREAMLINE_NUM_SEGS {
                         let u = self.sample_field(x, y, Field::U);
                         let v = self.sample_field(x, y, Field::V);
                         let l = f32::sqrt(u * u + v * v);
@@ -596,16 +608,15 @@ impl FluidSimulation {
         }
 
         if self.show_obstacle {
-            // LVSTODO move to consts
             let r = self.obstacle_radius + self.h;
             let o = self.obstacle_pos;
             if self.show_pressure {
-                c.set_stroke_style(&JsValue::from("#000000"));
+                c.set_stroke_style(&black_hex);
             } else {
-                c.set_stroke_style(&JsValue::from("#DDDDDD"));
+                c.set_stroke_style(&grey_hex);
             }
 
-            c.set_fill_style(&JsValue::from("#FFFFFF"));
+            c.set_fill_style(&white_hex);
             c.begin_path();
             c.arc(
                 self.c_x(o[0]).into(),
@@ -619,7 +630,7 @@ impl FluidSimulation {
             c.fill();
 
             c.set_line_width(3.0);
-            c.set_stroke_style(&JsValue::from("#000000"));
+            c.set_stroke_style(&black_hex);
             c.begin_path();
             c.arc(
                 self.c_x(o[0]).into(),
