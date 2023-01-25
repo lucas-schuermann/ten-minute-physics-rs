@@ -510,11 +510,11 @@ impl FluidSimulation {
                 for yi in y..y + cy {
                     let mut p = 4 * (yi * self.width as usize + x);
                     for _ in 0..cx {
-                        // LVSTODO cleaner ways to loop
-                        if p + 3 < self.render_buffer.len() {
-                            self.render_buffer[p..p + 4].copy_from_slice(&color);
-                        }
                         p += 4;
+                        // y-coord extrema are cut off
+                        if p <= self.render_buffer.len() {
+                            self.render_buffer[p - 4..p].copy_from_slice(&color);
+                        }
                     }
                 }
             }

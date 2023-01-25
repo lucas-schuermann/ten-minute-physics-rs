@@ -1,11 +1,21 @@
 [package]
 name = "ten-minute-physics-rs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license = "MIT"                                                # here and below, wasm-pack doesn't play well with type map
+repository = "https://github.com/cerrno/ten-minute-physics-rs"
+publish = false
+
+[workspace]
+members = ["src/gpu_cloth_16_shader", "src/flip_18_shader"]
+
+[workspace.package]
 version = "0.1.0"
 repository = "https://github.com/cerrno/ten-minute-physics-rs"
 authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
 edition = "2021"
 license = "MIT"
-publish = false
 
 [lib]
 crate-type = ["cdylib"]
@@ -27,6 +37,13 @@ glam = "0.22"
 getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
 once_cell = "1.17"
+
+[build-dependencies]
+spirv_cross = { version = "0.23", features = ["glsl"] }
+spirv-builder = "0.4.0"
+
+[workspace.dependencies]
+spirv-std = "0.4"
 
 [profile.release]
 lto = "fat"

@@ -11,6 +11,7 @@ import { SoftBodiesDemo, SoftBodiesDemoConfig } from './src/softbodies_10';
 import { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig } from './src/softbody_skinning_12';
 import { FluidDemo, FluidDemoConfig } from './src/fluid_sim_17';
 import { FlipDemo, FlipDemoConfig } from './src/flip_18';
+import { GPUClothDemo, GPUClothDemoConfig } from './src/gpu_cloth_16';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
@@ -40,6 +41,11 @@ import('./pkg').then(rust_wasm => {
             title: 'Cloth Self Collision Handling',
             config: SelfCollisionDemoConfig,
             demo: SelfCollisionDemo,
+        },
+        '16-GPUCloth': {
+            title: 'Parallel Cloth Simulation on GPU',
+            config: GPUClothDemoConfig,
+            demo: GPUClothDemo,
         },
         '17-FluidSimulation': {
             title: 'Euler Fluid',
@@ -181,7 +187,7 @@ import('./pkg').then(rust_wasm => {
 
     // populate controls window
     const props = {
-        demoSelection: demoNames.at(-1), // default to latest demo
+        demoSelection: demoNames.at(-3), // default to latest demo // LVSTODO testing
         reset: () => demo.reset(),
     }
     const gui = new GUI({ autoPlace: false });

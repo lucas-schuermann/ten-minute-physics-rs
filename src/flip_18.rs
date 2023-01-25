@@ -941,52 +941,54 @@ impl Renderer {
         context.viewport(0, 0, width, height);
         context.clear_color(0.0, 0.0, 0.0, 1.0);
 
+        //         r#"#version 300 es
+        //         precision mediump float;
+        //
+        //         uniform float point_size;
+        //         uniform vec2 domain_size;
+        //         uniform int mode_draw_disk;
+        //         in vec2 position;
+        //         in vec3 color;
+        //         out vec3 frag_color;
+        //         flat out int frag_mode_draw_disk;
+        //
+        //         void main() {
+        //             vec4 screen_transform = vec4(2.0 / domain_size.x, 2.0 / domain_size.y, -1.0, -1.0);
+        //             gl_Position = vec4(position * screen_transform.xy + screen_transform.zw, 0.0, 1.0);
+        //
+        //             gl_PointSize = point_size;
+        //             frag_color = color;
+        //             frag_mode_draw_disk = mode_draw_disk;
+        //         }
+        //         "#,
+        //         r#"#version 300 es
+        //         precision mediump float;
+        //
+        //         layout(location = 0) in vec3 frag_color;
+        //         layout(location = 1) flat in int frag_mode_draw_disk;
+        //         out vec4 out_color;
+        //
+        //         void main() {
+        //             if (frag_mode_draw_disk == 1) {
+        // 				float rx = 0.5 - gl_PointCoord.x;
+        // 				float ry = 0.5 - gl_PointCoord.y;
+        // 				float r2 = rx * rx + ry * ry;
+        // 				if (r2 > 0.25) {
+        // 					discard;
+        //                 }
+        // 			}
+        // 			out_color = vec4(frag_color, 1.0);
+        //         }
+        //         "#,
         let particle_vert_shader = Self::compile_shader(
             &context,
             WebGl2RenderingContext::VERTEX_SHADER,
-            r#"#version 300 es
-        precision mediump float;
-
-        uniform float point_size;
-        uniform vec2 domain_size;
-        uniform int mode_draw_disk;
-        in vec2 position;
-        in vec3 color;
-        out vec3 frag_color;
-        flat out int frag_mode_draw_disk;
-
-        void main() {
-            vec4 screen_transform = vec4(2.0 / domain_size.x, 2.0 / domain_size.y, -1.0, -1.0);
-            gl_Position = vec4(position * screen_transform.xy + screen_transform.zw, 0.0, 1.0);
-            
-            gl_PointSize = point_size;
-            frag_color = color;
-            frag_mode_draw_disk = mode_draw_disk;
-        }
-        "#,
+            include_str!("flip_18_shader/particle_vs.glsl"),
         )?;
         let particle_frag_shader = Self::compile_shader(
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
-            r#"#version 300 es
-        precision mediump float;
-
-        flat in int frag_mode_draw_disk;
-        in vec3 frag_color;
-        out vec4 out_color;
-
-        void main() {
-            if (frag_mode_draw_disk == 1) {
-				float rx = 0.5 - gl_PointCoord.x;
-				float ry = 0.5 - gl_PointCoord.y;
-				float r2 = rx * rx + ry * ry;
-				if (r2 > 0.25) {
-					discard;
-                }
-			}
-			out_color = vec4(frag_color, 1.0);
-        }
-        "#,
+            include_str!("flip_18_shader/particle_fs.glsl"),
         )?;
         let particle_program =
             Self::link_program(&context, &particle_vert_shader, &particle_frag_shader)?;

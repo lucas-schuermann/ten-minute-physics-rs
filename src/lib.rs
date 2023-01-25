@@ -30,6 +30,7 @@ fn get_sci_color_255(val: f32, min: f32, max: f32) -> [f32; 3] {
 mod cloth_14;
 mod flip_18;
 mod fluid_sim_17;
+mod gpu_cloth_16;
 mod hashing_11;
 mod mesh;
 mod self_collision_15;

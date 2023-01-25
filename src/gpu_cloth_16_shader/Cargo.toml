@@ -1,0 +1,14 @@
+[package]
+name = "gpu-cloth-16-shader"
+version = "0.0.0"
+publish = false
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["lib", "dylib"]
+
+[dependencies]
+spirv-std = { workspace = true, features = ["glam"] }

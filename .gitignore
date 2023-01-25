@@ -5,3 +5,6 @@
 dist/
 pkg/
 node_modules/
+
+# intermediate build outputs
+*.glsl

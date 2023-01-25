@@ -14,7 +14,7 @@
         // linter Checks
         "noImplicitReturns": true,
         "noUncheckedIndexedAccess": true,
-        "noUnusedLocals": true,
+        //"noUnusedLocals": true, // LVSTODO testing
         "noUnusedParameters": true
     },
     "include": [

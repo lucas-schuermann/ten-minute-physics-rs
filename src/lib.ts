@@ -33,7 +33,7 @@ type Scene3D = {
     kind: "3D";
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
-    renderer: THREE.Renderer;
+    renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
 }
 
