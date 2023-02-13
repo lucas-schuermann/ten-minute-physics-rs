@@ -152,6 +152,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "solver"
+version = "0.0.0"
+source = "git+https://github.com/cerrno/pbd-fluid-rs?rev=62747ac#62747ac8ce1d06b6dbc067c027cb8dc566f01f5e"
+dependencies = [
+ "cgmath",
+ "glam",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -172,6 +181,7 @@ dependencies = [
  "js-sys",
  "once_cell",
  "rand",
+ "solver",
  "wasm-bindgen",
  "web-sys",
 ]
