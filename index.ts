@@ -12,6 +12,7 @@ import { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig } from './src/softbody_s
 import { FluidDemo, FluidDemoConfig } from './src/fluid_sim_17';
 import { FlipDemo, FlipDemoConfig } from './src/flip_18';
 import { BodyChainDemo, BodyChainDemoConfig } from './src/body_chain_challenge';
+import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/fluid_2d_challenge';
 
 import('./pkg').then(rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
@@ -56,6 +57,11 @@ import('./pkg').then(rust_wasm => {
             title: 'Chain of 100 Bodies',
             config: BodyChainDemoConfig,
             demo: BodyChainDemo,
+        },
+        'Chall-2D-Fluid': {
+            title: '2D Particle Fluid',
+            config: PositionBasedFluidDemoConfig,
+            demo: PositionBasedFluidDemo,
         }
     };
     const demoNames = Object.keys(demos);

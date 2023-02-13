@@ -28,6 +28,8 @@ getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
 once_cell = "1.17"
 
+pbd-fluid-solver = { git = "https://github.com/cerrno/pbd-fluid-rs", package = "solver", rev = "62747ac" }
+
 [profile.release]
 lto = "fat"
 panic = "abort"
