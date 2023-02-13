@@ -23,7 +23,7 @@ web-sys = { version = "0.3", features = [
     "WebGlProgram",
     "WebGlShader",
 ] }
-glam = "0.22"
+glam = { version = "0.22", features = ["fast-math", "scalar-math"] }
 getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
 once_cell = "1.17"

@@ -357,6 +357,7 @@ impl SoftBodiesSimulation {
 
     #[wasm_bindgen(setter)]
     pub fn set_solver_substeps(&mut self, num_substeps: u8) {
+        self.num_substeps = num_substeps;
         self.bodies
             .iter_mut()
             .for_each(|b| b.set_solver_substeps(num_substeps));
@@ -364,6 +365,7 @@ impl SoftBodiesSimulation {
 
     #[wasm_bindgen(setter)]
     pub fn set_edge_compliance(&mut self, compliance: f32) {
+        self.edge_compliance = compliance;
         self.bodies
             .iter_mut()
             .for_each(|b| b.edge_compliance = compliance);
@@ -371,6 +373,7 @@ impl SoftBodiesSimulation {
 
     #[wasm_bindgen(setter)]
     pub fn set_volume_compliance(&mut self, compliance: f32) {
+        self.vol_compliance = compliance;
         self.bodies
             .iter_mut()
             .for_each(|b| b.vol_compliance = compliance);
