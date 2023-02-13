@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use web_sys::{CanvasRenderingContext2d, ImageData};
 
-use crate::get_sci_color_255;
+use crate::util::get_sci_color_255;
 
 const SIM_HEIGHT: f32 = 1.0;
 const DEFAULT_OBSTACLE_POS: Vec2 = Vec2::ZERO;

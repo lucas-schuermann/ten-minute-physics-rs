@@ -8,11 +8,9 @@ use std::f32::consts::PI;
 
 use glam::{vec3, UVec2, Vec2, Vec3};
 use wasm_bindgen::prelude::*;
-use web_sys::{
-    WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlShader, WebGlUniformLocation,
-};
+use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlUniformLocation};
 
-use crate::get_sci_color;
+use crate::util::{compile_shader, get_sci_color, link_program, set_buffers_and_attributes};
 
 const SIM_HEIGHT: f32 = 3.0;
 const DEFAULT_RESOLUTION: f32 = 100.0;
@@ -723,7 +721,7 @@ impl FlipSimulation {
             gl.uniform1i(Some(&self.renderer.particle_mode_draw_disk_uniform), 0);
 
             // set position buffer
-            WebGLRenderer::set_buffers_and_attributes(
+            set_buffers_and_attributes(
                 gl,
                 &self.renderer.grid_buffer,
                 2,
@@ -731,7 +729,7 @@ impl FlipSimulation {
             );
 
             // set color buffer
-            WebGLRenderer::set_buffers_and_attributes(
+            set_buffers_and_attributes(
                 gl,
                 &self.renderer.grid_color_buffer,
                 3,
@@ -784,7 +782,7 @@ impl FlipSimulation {
             gl.uniform1i(Some(&self.renderer.particle_mode_draw_disk_uniform), 1);
 
             // set position buffer
-            WebGLRenderer::set_buffers_and_attributes(
+            set_buffers_and_attributes(
                 gl,
                 &self.renderer.particle_buffer,
                 2,
@@ -804,7 +802,7 @@ impl FlipSimulation {
             }
 
             // set color buffer
-            WebGLRenderer::set_buffers_and_attributes(
+            set_buffers_and_attributes(
                 gl,
                 &self.renderer.particle_color_buffer,
                 3,
@@ -855,7 +853,7 @@ impl FlipSimulation {
                 self.obstacle_radius + self.particle_radius,
             );
 
-            WebGLRenderer::set_buffers_and_attributes(
+            set_buffers_and_attributes(
                 gl,
                 &self.renderer.disk_buffer,
                 2,
@@ -941,7 +939,7 @@ impl WebGLRenderer {
         context.viewport(0, 0, width, height);
         context.clear_color(0.0, 0.0, 0.0, 1.0);
 
-        let particle_vert_shader = Self::compile_shader(
+        let particle_vert_shader = compile_shader(
             &context,
             WebGl2RenderingContext::VERTEX_SHADER,
             r#"#version 300 es
@@ -965,7 +963,7 @@ impl WebGLRenderer {
         }
         "#,
         )?;
-        let particle_frag_shader = Self::compile_shader(
+        let particle_frag_shader = compile_shader(
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
             r#"#version 300 es
@@ -989,9 +987,9 @@ impl WebGLRenderer {
         "#,
         )?;
         let particle_program =
-            Self::link_program(&context, &particle_vert_shader, &particle_frag_shader)?;
+            link_program(&context, &particle_vert_shader, &particle_frag_shader)?;
 
-        let mesh_vert_shader = Self::compile_shader(
+        let mesh_vert_shader = compile_shader(
             &context,
             WebGl2RenderingContext::VERTEX_SHADER,
             r#"#version 300 es
@@ -1013,7 +1011,7 @@ impl WebGLRenderer {
         }
         "#,
         )?;
-        let mesh_frag_shader = Self::compile_shader(
+        let mesh_frag_shader = compile_shader(
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
             r#"#version 300 es
@@ -1027,7 +1025,7 @@ impl WebGLRenderer {
         }
         "#,
         )?;
-        let mesh_program = Self::link_program(&context, &mesh_vert_shader, &mesh_frag_shader)?;
+        let mesh_program = link_program(&context, &mesh_vert_shader, &mesh_frag_shader)?;
 
         // particle shader uniforms
         let particle_point_size_uniform = context
@@ -1204,73 +1202,5 @@ impl WebGLRenderer {
             mesh_translation_uniform,
             mesh_scale_uniform,
         })
-    }
-
-    fn set_buffers_and_attributes(
-        context: &WebGl2RenderingContext,
-        buffer: &WebGlBuffer,
-        attrib_size: i32,
-        attrib_location: u32,
-    ) {
-        context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(buffer));
-        context.vertex_attrib_pointer_with_i32(
-            attrib_location,
-            attrib_size,
-            WebGl2RenderingContext::FLOAT,
-            false,
-            0,
-            0,
-        );
-        context.enable_vertex_attrib_array(attrib_location);
-    }
-
-    fn compile_shader(
-        context: &WebGl2RenderingContext,
-        shader_type: u32,
-        source: &str,
-    ) -> Result<WebGlShader, String> {
-        let shader = context
-            .create_shader(shader_type)
-            .ok_or_else(|| String::from("Unable to create shader object"))?;
-        context.shader_source(&shader, source);
-        context.compile_shader(&shader);
-
-        if context
-            .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
-            .as_bool()
-            .unwrap_or(false)
-        {
-            Ok(shader)
-        } else {
-            Err(context
-                .get_shader_info_log(&shader)
-                .unwrap_or_else(|| String::from("Unknown error creating shader")))
-        }
-    }
-
-    fn link_program(
-        context: &WebGl2RenderingContext,
-        vert_shader: &WebGlShader,
-        frag_shader: &WebGlShader,
-    ) -> Result<WebGlProgram, String> {
-        let program = context
-            .create_program()
-            .ok_or_else(|| String::from("Unable to create shader object"))?;
-
-        context.attach_shader(&program, vert_shader);
-        context.attach_shader(&program, frag_shader);
-        context.link_program(&program);
-
-        if context
-            .get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS)
-            .as_bool()
-            .unwrap_or(false)
-        {
-            Ok(program)
-        } else {
-            Err(context
-                .get_program_info_log(&program)
-                .unwrap_or_else(|| String::from("Unknown error creating program object")))
-        }
     }
 }
