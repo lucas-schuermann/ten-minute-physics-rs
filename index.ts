@@ -1,20 +1,20 @@
 import GUI from 'lil-gui';
 import * as Stats from 'stats.js';
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
 
 import { SelfCollisionDemo, SelfCollisionDemoConfig } from './src/self_collision_15';
 import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
 import { HashDemo, HashDemoConfig } from './src/hashing_11';
-import { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig } from './src/lib';
+import { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, initThreeScene } from './src/lib';
 import { SoftBodiesDemo, SoftBodiesDemoConfig } from './src/softbodies_10';
 import { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig } from './src/softbody_skinning_12';
 import { FluidDemo, FluidDemoConfig } from './src/fluid_sim_17';
 import { FlipDemo, FlipDemoConfig } from './src/flip_18';
 import { BodyChainDemo, BodyChainDemoConfig } from './src/body_chain_challenge';
 import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/fluid_2d_challenge';
+import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth_16';
 
-import('./pkg').then(rust_wasm => {
+import('./pkg').then(async rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
 
     const demos: Record<string, { title: string, config: SceneConfig, demo: any }> = {
@@ -42,6 +42,11 @@ import('./pkg').then(rust_wasm => {
             title: 'Cloth Self Collision Handling',
             config: SelfCollisionDemoConfig,
             demo: SelfCollisionDemo,
+        },
+        '16-ParallelCloth': {
+            title: 'Parallel Cloth Solver',
+            config: ParallelClothDemoConfig,
+            demo: ParallelClothDemo,
         },
         '17-FluidSimulation': {
             title: 'Euler Fluid',
@@ -96,77 +101,20 @@ import('./pkg').then(rust_wasm => {
         }
     }
 
-    const initThreeScene = (config: Scene3DConfig): Scene3D => {
+    const init3DScene = (config: Scene3DConfig): Scene3D => {
+        console.log("LVSTEST: INIT 3d scene");
+
         replaceCanvas();
 
-        const scene = new THREE.Scene();
-
-        // lights
-        scene.add(new THREE.AmbientLight(0x505050));
-        scene.fog = new THREE.Fog(0x000000, 0, 15);
-
-        const spotLight = new THREE.SpotLight(0xffffff);
-        spotLight.angle = Math.PI / 5;
-        spotLight.penumbra = 0.2;
-        spotLight.position.set(2, 3, 3);
-        spotLight.castShadow = true;
-        spotLight.shadow.camera.near = 3;
-        spotLight.shadow.camera.far = 10;
-        spotLight.shadow.mapSize.width = 1024;
-        spotLight.shadow.mapSize.height = 1024;
-        scene.add(spotLight);
-
-        const dirLight = new THREE.DirectionalLight(0x55505a, 1);
-        dirLight.position.set(0, 3, 0);
-        dirLight.castShadow = true;
-        dirLight.shadow.camera.near = 1;
-        dirLight.shadow.camera.far = 10;
-        dirLight.shadow.camera.right = 1;
-        dirLight.shadow.camera.left = - 1;
-        dirLight.shadow.camera.top = 1;
-        dirLight.shadow.camera.bottom = - 1;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
-        scene.add(dirLight);
-
-        // geometry
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(20, 20, 1, 1),
-            new THREE.MeshPhongMaterial({ color: 0xa0adaf, shininess: 150 })
-        );
-        ground.rotation.x = - Math.PI / 2; // rotates X/Y to X/Z
-        ground.receiveShadow = true;
-        scene.add(ground);
-        const helper = new THREE.GridHelper(20, 20);
-        const material = helper.material as THREE.Material;
-        material.opacity = 1.0;
-        material.transparent = true;
-        helper.position.set(0, 0.002, 0);
-        scene.add(helper);
-
-        // renderer
-        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
-        renderer.shadowMap.enabled = true;
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-
-        // camera
-        const camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
-        camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
-        camera.updateMatrixWorld();
-        scene.add(camera);
-
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.zoomSpeed = 2.0;
-        controls.panSpeed = 0.4;
-        controls.target = config.cameraLookAt;
-        controls.update();
-
-        return { kind: '3D', scene, camera, renderer, controls };
+        let scene = initThreeScene(canvas, canvas, config);
+        scene.renderer.setPixelRatio(window.devicePixelRatio);
+        scene.renderer.setSize(window.innerWidth, window.innerHeight);
+        return scene;
     };
 
     let resizeTimer: NodeJS.Timeout; // limit 2d resize events to once per 250ms
     window.addEventListener('resize', () => {
+        // LVSTODO how to handle offscreen canvas?
         if (scene.kind === "3D") {
             // for 3d, THREE.js can non-destructively update the renderer
             const width = window.innerWidth;
@@ -201,27 +149,45 @@ import('./pkg').then(rust_wasm => {
     $('gui').appendChild(gui.domElement);
     const generalFolder = gui.addFolder('General');
     let demoFolder: GUI;
-    const initDemo = (sid: string) => {
+    const initDemo = async (sid: string) => {
         if (demoFolder) demoFolder.destroy();
         demoFolder = gui.addFolder('Demo Settings');
         const config = demos[sid].config;
         if (config.kind === "3D") {
-            scene = initThreeScene(config);
+            if (config.offscreen === true) {
+                console.log("LVSTEST: init 3d offscreen");
+                scene = { kind: "3D", offscreen: true };
+            } else {
+                scene = init3DScene(config);
+            }
         } else {
-            scene = init2DScene(config);
+            scene = init2DScene(config); // LVSTODO why is this dumb
         }
         $('title').innerText = demos[sid].title;
-        demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);
-        demo.init();
+        if (!(config.kind === "3D" && config.offscreen)) {
+            demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);
+        } else {
+            console.log("LVS INIT");
+            replaceCanvas();
+            canvas.width = 1200;
+            canvas.height = 800;
+            demo = new demos[sid].demo(rust_wasm, canvas.transferControlToOffscreen(), canvas, config, demoFolder, stats, simPanel);
+        }
+        await demo.init();
     }
-    generalFolder.add(props, 'demoSelection', demoNames).name('select demo').onFinishChange(initDemo);
+    generalFolder.add(props, 'demoSelection', demoNames).name('select demo').onFinishChange(await initDemo);
     generalFolder.add(props, 'reset').name('reset simulation');
 
     // default init
-    initDemo(props.demoSelection);
+    await initDemo(props.demoSelection);
 
     // main loop
     const animate = () => {
+        if (scene.kind === "3D" && scene.offscreen) {
+            requestAnimationFrame(animate); // noop for offscreen canvas, main loop in web worker
+            return;
+        };
+
         stats.begin(); // collect perf data for stats.js
         let simTimeMs = performance.now();
         demo.update();
@@ -237,3 +203,5 @@ import('./pkg').then(rust_wasm => {
     }
     requestAnimationFrame(animate);
 }).catch(console.error);
+
+export { initThreeScene };

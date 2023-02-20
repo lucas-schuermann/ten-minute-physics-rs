@@ -1,19 +1,33 @@
+#![feature(sync_unsafe_cell)]
 #![allow(
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss
 )]
 
+#[cfg(not(feature = "parallel"))]
 mod body_chain_challenge;
+#[cfg(not(feature = "parallel"))]
 mod cloth_14;
+#[cfg(not(feature = "parallel"))]
 mod flip_18;
+#[cfg(not(feature = "parallel"))]
 mod fluid_2d_challenge;
+#[cfg(not(feature = "parallel"))]
 mod fluid_sim_17;
+#[cfg(not(feature = "parallel"))]
 mod hashing_11;
+#[cfg(not(feature = "parallel"))]
 mod mesh;
+#[cfg(not(feature = "parallel"))]
 mod self_collision_15;
+#[cfg(not(feature = "parallel"))]
 mod softbodies_10;
+#[cfg(not(feature = "parallel"))]
 mod softbody_skinning_12;
+
+#[cfg(feature = "parallel")]
+mod parallel_cloth_16;
 
 pub mod util {
     use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlShader};

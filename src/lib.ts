@@ -31,10 +31,11 @@ type Scene2DWebGL = {
 
 type Scene3D = {
     kind: "3D";
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    renderer: THREE.WebGLRenderer;
-    controls: OrbitControls;
+    scene?: THREE.Scene;
+    camera?: THREE.PerspectiveCamera;
+    renderer?: THREE.WebGLRenderer;
+    controls?: OrbitControls;
+    offscreen: boolean;
 }
 
 type SceneConfig = Scene2DConfig | Scene3DConfig;
@@ -47,6 +48,7 @@ type Scene3DConfig = {
     kind: "3D";
     cameraYZ: [number, number];
     cameraLookAt: THREE.Vector3;
+    offscreen?: boolean;
 };
 
 type GrabberInterface = {
@@ -185,7 +187,83 @@ class Grabber {
     }
 }
 
+const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, canvasElement: HTMLElement, config: Scene3DConfig): Scene3D => {
+    const scene = new THREE.Scene();
+
+    // lights
+    scene.add(new THREE.AmbientLight(0x505050));
+    scene.fog = new THREE.Fog(0x000000, 0, 15);
+
+    const spotLight = new THREE.SpotLight(0xffffff);
+    spotLight.angle = Math.PI / 5;
+    spotLight.penumbra = 0.2;
+    spotLight.position.set(2, 3, 3);
+    spotLight.castShadow = true;
+    spotLight.shadow.camera.near = 3;
+    spotLight.shadow.camera.far = 10;
+    spotLight.shadow.mapSize.width = 1024;
+    spotLight.shadow.mapSize.height = 1024;
+    scene.add(spotLight);
+
+    const dirLight = new THREE.DirectionalLight(0x55505a, 1);
+    dirLight.position.set(0, 3, 0);
+    dirLight.castShadow = true;
+    dirLight.shadow.camera.near = 1;
+    dirLight.shadow.camera.far = 10;
+    dirLight.shadow.camera.right = 1;
+    dirLight.shadow.camera.left = - 1;
+    dirLight.shadow.camera.top = 1;
+    dirLight.shadow.camera.bottom = - 1;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    scene.add(dirLight);
+
+    // geometry
+    const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(20, 20, 1, 1),
+        new THREE.MeshPhongMaterial({ color: 0xa0adaf, shininess: 150 })
+    );
+    ground.rotation.x = - Math.PI / 2; // rotates X/Y to X/Z
+    ground.receiveShadow = true;
+    scene.add(ground);
+    const helper = new THREE.GridHelper(20, 20);
+    const material = helper.material as THREE.Material;
+    material.opacity = 1.0;
+    material.transparent = true;
+    helper.position.set(0, 0.002, 0);
+    scene.add(helper);
+
+    // renderer
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.shadowMap.enabled = true;
+    //renderer.setPixelRatio(window.devicePixelRatio);
+    //renderer.setSize(window.innerWidth, window.innerHeight);
+
+    // camera
+    const camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
+
+    console.log(config.cameraYZ);
+
+    camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
+    camera.updateMatrixWorld();
+    scene.add(camera);
+
+    console.log(camera);
+    console.log(scene);
+
+    console.log("canvas element", canvasElement);
+    // const controls = new OrbitControls(camera, canvasElement);
+    // controls.zoomSpeed = 2.0;
+    // controls.panSpeed = 0.4;
+    // controls.target = config.cameraLookAt;
+    // controls.update();
+    const controls: any = null;
+
+    return { kind: '3D', scene, camera, renderer, controls, offscreen: config.offscreen };
+};
+
+
 // returns ['EnumOne', 'EnumTwo', ...]
 const enumToValueList = (e: any): any => Object.values(e).filter((i) => typeof i === 'string');
 
-export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, enumToValueList };
+export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, initThreeScene, enumToValueList };
