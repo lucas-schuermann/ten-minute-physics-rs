@@ -1,12 +1,11 @@
 use std::cell::SyncUnsafeCell;
-use std::mem::ManuallyDrop;
 
 use glam::{vec3, Vec3};
 use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "parallel")]
-// must be included to init rayon thread pool with web workers
+// must be exported to init rayon thread pool with web workers
 pub use wasm_bindgen_rayon::init_thread_pool;
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
@@ -37,8 +36,9 @@ impl SolverPass {
     }
 }
 
-#[derive(PartialEq)]
-enum SolverKind {
+#[wasm_bindgen]
+#[derive(PartialEq, Copy, Clone)]
+pub enum SolverKind {
     COLORING,
     JACOBI,
 }
@@ -58,24 +58,38 @@ pub struct ParallelClothSimulation {
     inv_dt: f32,
 
     tri_ids: Vec<[usize; 3]>,
-    tri_dist: Vec<f32>,
     passes: Vec<SolverPass>,
     dist_constraint_ids: Vec<(usize, usize)>,
     rest_lengths: Vec<f32>,
-    solver_kind: SolverKind,
+    pub solver_kind: SolverKind,
 
     pos: Vec<Vec3>,
     prev: Vec<Vec3>,
-    rest: Vec<Vec3>,
+    init_pos: Vec<Vec3>,
     inv_mass: Vec<f32>,
     corr: Vec<Vec3>,
     vel: Vec<Vec3>,
 
     obstacle_pos: Vec3,
+    #[wasm_bindgen(readonly)]
     pub obstacle_radius: f32,
 
     grab_inv_mass: f32,
     grab_id: Option<usize>,
+}
+
+// mark as unsafe, as it's possible to provide parameters that cause
+// undefined behaviour
+unsafe fn add_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize, rhs: Vec3) {
+    let vec = vec_ptr.read();
+    let first_elem = vec.as_mut_ptr();
+    *first_elem.add(idx) += rhs;
+}
+
+unsafe fn get_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize) -> Vec3 {
+    let vec = vec_ptr.read();
+    let first_elem = vec.as_mut_ptr();
+    *first_elem.add(idx)
 }
 
 #[wasm_bindgen]
@@ -83,10 +97,6 @@ impl ParallelClothSimulation {
     #[must_use]
     #[wasm_bindgen(constructor)]
     pub fn new(num_substeps: u8, num_x: usize, num_y: usize) -> Self {
-        // LVSTODO force numx and numy to be even
-
-        let y_offset = DEFAULT_CLOTH_POS_Y; // LVSTODO
-
         let mut num_x = num_x;
         let mut num_y = num_y;
         if num_x % 2 == 1 {
@@ -104,13 +114,13 @@ impl ParallelClothSimulation {
                 let id = xi * (num_y + 1) + yi;
                 pos[id] = vec3(
                     (num_x as f32 * -0.5 + xi as f32) * CLOTH_SPACING,
-                    y_offset,
+                    DEFAULT_CLOTH_POS_Y,
                     (num_y as f32 * -0.5 + yi as f32) * CLOTH_SPACING,
                 );
             }
         }
 
-        let mut first = 0;
+        let mut last_constraint_index = 0;
         let mut passes = vec![];
         for (size, independent) in [
             ((num_x + 1) * f32::floor(num_y as f32 / 2.0) as usize, true),
@@ -122,10 +132,10 @@ impl ParallelClothSimulation {
                 false,
             ),
         ] {
-            passes.push(SolverPass::new(first, size, independent));
-            first += size;
+            passes.push(SolverPass::new(last_constraint_index, size, independent));
+            last_constraint_index += size;
         }
-        let num_dist_constraints: usize = first;
+        let num_dist_constraints: usize = last_constraint_index;
         let mut dist_constraint_ids: Vec<(usize, usize)> = vec![(0, 0); num_dist_constraints];
 
         // stretch constraints
@@ -189,7 +199,6 @@ impl ParallelClothSimulation {
         // compute tri ids
         let num_tris = 2 * num_x * num_y;
         let mut tri_ids = vec![[0; 3]; num_tris];
-        let tri_dist = vec![0.0; num_tris];
         let mut i = 0;
         for xi in 0..num_x {
             for yi in 0..num_y {
@@ -204,7 +213,7 @@ impl ParallelClothSimulation {
         }
 
         let dt = TIME_STEP / Into::<f32>::into(num_substeps);
-        let mut cloth = Self {
+        Self {
             num_particles,
             num_tris,
             num_dist_constraints,
@@ -213,7 +222,6 @@ impl ParallelClothSimulation {
             inv_dt: 1.0 / dt,
 
             tri_ids,
-            tri_dist,
             passes,
             dist_constraint_ids,
             rest_lengths,
@@ -221,7 +229,7 @@ impl ParallelClothSimulation {
 
             pos: pos.clone(),
             prev: pos.clone(),
-            rest: pos,
+            init_pos: pos,
             inv_mass: vec![1.0; num_particles],
             corr: vec![Vec3::ZERO; num_particles],
             vel: vec![Vec3::ZERO; num_particles],
@@ -231,9 +239,7 @@ impl ParallelClothSimulation {
 
             grab_inv_mass: 0.0,
             grab_id: None,
-        };
-        cloth.init();
-        cloth
+        }
     }
 
     #[wasm_bindgen(getter)]
@@ -256,16 +262,18 @@ impl ParallelClothSimulation {
         self.tri_ids.iter().flat_map(|e| e.to_vec()).collect()
     }
 
-    pub fn reset(&mut self) {}
+    pub fn reset(&mut self) {
+        self.pos.copy_from_slice(&self.init_pos);
+        self.prev.copy_from_slice(&self.pos);
+        self.vel.fill(Vec3::ZERO);
+    }
 
     #[wasm_bindgen(setter)]
-    pub fn set_solver_substeps(&mut self, num_substeps: u8) {
+    pub fn set_num_substeps(&mut self, num_substeps: u8) {
         self.num_substeps = num_substeps;
         self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
     }
-
-    fn init(&mut self) {}
 
     fn integrate(&mut self) {
         (0..self.num_particles)
@@ -306,36 +314,6 @@ impl ParallelClothSimulation {
         num_constraints: usize,
         first_constraint: usize,
     ) {
-        // mark as unsafe, as it's possible to provide parameters that
-        // cause undefined behaviour
-        unsafe fn add_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize, rhs: Vec3) {
-            // get pointer to internal Vec buffer
-            // copy Vec struct so that we don't alias a mutable reference
-            let vec = vec_ptr.read();
-            // ManuallyDrop inhibits drop of this copied Vec,
-            // avoiding a double-free
-            let mut vec = ManuallyDrop::new(vec);
-            // get a pointer to the internal buffer
-            let first_elem = vec.as_mut_ptr();
-
-            // No need to use unsafe{} here, as the entire function is already unsafe
-            *first_elem.add(idx) += rhs;
-        }
-
-        unsafe fn get_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize) -> Vec3 {
-            // get pointer to internal Vec buffer
-            // copy Vec struct so that we don't alias a mutable reference
-            let vec = vec_ptr.read();
-            // ManuallyDrop inhibits drop of this copied Vec,
-            // avoiding a double-free
-            let mut vec = ManuallyDrop::new(vec);
-            // get a pointer to the internal buffer
-            let first_elem = vec.as_mut_ptr();
-
-            // No need to use unsafe{} here, as the entire function is already unsafe
-            *first_elem.add(idx)
-        }
-
         let corr_cell = SyncUnsafeCell::new(&mut self.corr);
         let pos_cell = SyncUnsafeCell::new(&mut self.pos);
 
@@ -359,6 +337,7 @@ impl ParallelClothSimulation {
             let l = d.length();
             let l0 = self.rest_lengths[cid];
             let dp = n * (l - l0) / w;
+            // LVSTODO: comment on limitations
             if solver_kind == SolverKind::JACOBI {
                 unsafe {
                     add_unsync(corr_cell.get(), id0, w0 * dp);
@@ -388,25 +367,23 @@ impl ParallelClothSimulation {
             self.integrate();
             match self.solver_kind {
                 SolverKind::COLORING => {
-                    let mut first_constraint = 0;
                     for pass in &passes {
                         let num_constraints = pass.size;
                         if pass.independent {
                             self.solve_distance_constraints(
                                 SolverKind::COLORING,
                                 num_constraints,
-                                first_constraint,
+                                pass.first_constraint,
                             );
                         } else {
                             self.corr.fill(Vec3::ZERO);
                             self.solve_distance_constraints(
                                 SolverKind::JACOBI,
                                 num_constraints,
-                                first_constraint,
+                                pass.first_constraint,
                             );
                             self.add_corrections(JACOBI_SCALE);
                         }
-                        first_constraint += num_constraints;
                     }
                 }
                 SolverKind::JACOBI => {
@@ -422,9 +399,36 @@ impl ParallelClothSimulation {
         }
     }
 
-    pub fn start_grab(&mut self, _: usize, _pos: &[f32]) {}
+    pub fn start_grab(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
+        let mut min_d2 = f32::MAX;
+        self.grab_id = None;
+        for i in 0..self.num_particles {
+            let d2 = (pos - self.pos[i]).length_squared();
+            if d2 < min_d2 {
+                min_d2 = d2;
+                self.grab_id = Some(i);
+            }
+        }
 
-    pub fn move_grabbed(&mut self, _: usize, _pos: &[f32]) {}
+        if let Some(i) = self.grab_id {
+            self.grab_inv_mass = self.inv_mass[i];
+            self.inv_mass[i] = 0.0;
+            self.pos[i] = pos;
+        }
+    }
 
-    pub fn end_grab(&mut self, _: usize, _vel: &[f32]) {}
+    pub fn move_grabbed(&mut self, _: usize, pos: &[f32]) {
+        let pos = Vec3::from_slice(pos);
+        if let Some(i) = self.grab_id {
+            self.pos[i] = pos;
+        }
+    }
+
+    pub fn end_grab(&mut self, _: usize, _: &[f32]) {
+        if let Some(i) = self.grab_id {
+            self.inv_mass[i] = self.grab_inv_mass;
+        }
+        self.grab_id = None;
+    }
 }

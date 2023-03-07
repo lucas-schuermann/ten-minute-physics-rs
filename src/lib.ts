@@ -1,3 +1,4 @@
+import * as Comlink from 'comlink';
 import { Controller } from 'lil-gui';
 import * as THREE from 'three';
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -11,6 +12,8 @@ type Demo<S, T> = {
     update(): void;
     reset(): void;
     draw?(): void;
+    resize?(width: number, height: number): void;
+    free?(): void;
 }
 
 type Scene = Scene2DCanvas | Scene2DWebGL | Scene3D;
@@ -71,13 +74,14 @@ class Grabber {
     private mouseDown: boolean;
     private intersectedObjectId: null | number;
 
+    private inputElement: HTMLElement;
     private raycaster: THREE.Raycaster;
     private distance: number;
     private prevPos: THREE.Vector3;
     private vel: THREE.Vector3;
     private time: number;
 
-    constructor(sim: GrabberInterface, canvas: HTMLCanvasElement, scene: Scene3D, props: GrabberProps, animateController: Controller) {
+    constructor(sim: GrabberInterface, inputElement: HTMLElement, scene: Scene3D, props: GrabberProps, animateController: Controller) {
         this.sim = sim;
         this.scene = scene;
         this.props = props;
@@ -123,18 +127,19 @@ class Grabber {
                 }
             }
         }
-        canvas.addEventListener('mousedown', onInput, false);
-        canvas.addEventListener('touchstart', onInput, false);
-        canvas.addEventListener('mouseup', onInput, false);
-        canvas.addEventListener('touchend', onInput, false);
-        canvas.addEventListener('mousemove', onInput, false);
-        canvas.addEventListener('touchmove', onInput, false);
+        inputElement.addEventListener('mousedown', onInput, false);
+        inputElement.addEventListener('touchstart', onInput, false);
+        inputElement.addEventListener('mouseup', onInput, false);
+        inputElement.addEventListener('touchend', onInput, false);
+        inputElement.addEventListener('mousemove', onInput, false);
+        inputElement.addEventListener('touchmove', onInput, false);
+        this.inputElement = inputElement;
     }
     increaseTime(dt: number) {
         this.time += dt;
     }
     updateRaycaster(x: number, y: number) {
-        const rect = this.scene.renderer.domElement.getBoundingClientRect();
+        const rect = this.inputElement.getBoundingClientRect();
         this.mousePos.x = ((x - rect.left) / rect.width) * 2 - 1;
         this.mousePos.y = -((y - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mousePos, this.scene.camera);
@@ -187,7 +192,7 @@ class Grabber {
     }
 }
 
-const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, canvasElement: HTMLElement, config: Scene3DConfig): Scene3D => {
+const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElement: HTMLElement, config: Scene3DConfig, devicePixelRatio: number): Scene3D => {
     const scene = new THREE.Scene();
 
     // lights
@@ -236,34 +241,38 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, canvasEleme
     // renderer
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
     renderer.shadowMap.enabled = true;
-    //renderer.setPixelRatio(window.devicePixelRatio);
-    //renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(devicePixelRatio);
+    if (config.offscreen) {
+        // OffscreenCanvas has already been resized, only need to set GL viewport
+        //renderer.setViewport(inputElement.clientWidth / devicePixelRatio, inputElement.clientHeight / devicePixelRatio);
+        //renderer.setSize(inputElement.clientWidth, inputElement.clientHeight);
+    } else {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
 
     // camera
-    const camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.01, 100);
-
-    console.log(config.cameraYZ);
-
+    const camera = new THREE.PerspectiveCamera(70, inputElement.clientWidth / inputElement.clientHeight, 0.01, 100);
     camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
     camera.updateMatrixWorld();
     scene.add(camera);
 
-    console.log(camera);
-    console.log(scene);
-
-    console.log("canvas element", canvasElement);
-    // const controls = new OrbitControls(camera, canvasElement);
-    // controls.zoomSpeed = 2.0;
-    // controls.panSpeed = 0.4;
-    // controls.target = config.cameraLookAt;
-    // controls.update();
-    const controls: any = null;
+    const controls = new OrbitControls(camera, inputElement as HTMLCanvasElement);
+    controls.zoomSpeed = 2.0;
+    controls.panSpeed = 0.4;
+    controls.target.copy(config.cameraLookAt);
+    controls.update();
 
     return { kind: '3D', scene, camera, renderer, controls, offscreen: config.offscreen };
 };
+
+const resizeThreeScene = (scene: Scene3D, width: number, height: number, updateStyle: boolean) => {
+    scene.camera.aspect = width / height;
+    scene.camera.updateProjectionMatrix();
+    scene.renderer.setSize(width, height, updateStyle);
+}
 
 
 // returns ['EnumOne', 'EnumTwo', ...]
 const enumToValueList = (e: any): any => Object.values(e).filter((i) => typeof i === 'string');
 
-export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, initThreeScene, enumToValueList };
+export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, initThreeScene, resizeThreeScene, enumToValueList };

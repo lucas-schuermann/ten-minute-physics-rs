@@ -1,11 +1,10 @@
 import GUI from 'lil-gui';
 import * as Stats from 'stats.js';
 
-
 import { SelfCollisionDemo, SelfCollisionDemoConfig } from './src/self_collision_15';
 import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
 import { HashDemo, HashDemoConfig } from './src/hashing_11';
-import { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, initThreeScene } from './src/lib';
+import { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, initThreeScene, resizeThreeScene } from './src/lib';
 import { SoftBodiesDemo, SoftBodiesDemoConfig } from './src/softbodies_10';
 import { SkinnedSoftbodyDemo, SkinnedSoftbodyDemoConfig } from './src/softbody_skinning_12';
 import { FluidDemo, FluidDemoConfig } from './src/fluid_sim_17';
@@ -85,9 +84,9 @@ import('./pkg').then(async rust_wasm => {
 
     const init2DScene = (config: Scene2DConfig): Scene2DCanvas | Scene2DWebGL => {
         replaceCanvas();
-
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+
         let context;
         let kind = config.kind;
         if (kind === "2DCanvas") {
@@ -102,26 +101,19 @@ import('./pkg').then(async rust_wasm => {
     }
 
     const init3DScene = (config: Scene3DConfig): Scene3D => {
-        console.log("LVSTEST: INIT 3d scene");
-
         replaceCanvas();
-
-        let scene = initThreeScene(canvas, canvas, config);
-        scene.renderer.setPixelRatio(window.devicePixelRatio);
-        scene.renderer.setSize(window.innerWidth, window.innerHeight);
-        return scene;
+        return initThreeScene(canvas, canvas, config, window.devicePixelRatio);
     };
 
     let resizeTimer: NodeJS.Timeout; // limit 2d resize events to once per 250ms
     window.addEventListener('resize', () => {
-        // LVSTODO how to handle offscreen canvas?
         if (scene.kind === "3D") {
-            // for 3d, THREE.js can non-destructively update the renderer
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            scene.camera.aspect = width / height;
-            scene.camera.updateProjectionMatrix();
-            scene.renderer.setSize(width, height);
+            if (scene.offscreen) {
+                demo.resize(window.innerWidth / window.devicePixelRatio, window.innerHeight / window.devicePixelRatio);
+            } else {
+                // for 3d, THREE.js can non-destructively update the renderer
+                resizeThreeScene(scene, window.innerWidth, window.innerHeight, true);
+            }
         } else {
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(() => {
@@ -155,22 +147,20 @@ import('./pkg').then(async rust_wasm => {
         const config = demos[sid].config;
         if (config.kind === "3D") {
             if (config.offscreen === true) {
-                console.log("LVSTEST: init 3d offscreen");
                 scene = { kind: "3D", offscreen: true };
             } else {
                 scene = init3DScene(config);
             }
         } else {
-            scene = init2DScene(config); // LVSTODO why is this dumb
+            scene = init2DScene(config);
         }
         $('title').innerText = demos[sid].title;
         if (!(config.kind === "3D" && config.offscreen)) {
             demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);
         } else {
-            console.log("LVS INIT");
             replaceCanvas();
-            canvas.width = 1200;
-            canvas.height = 800;
+            canvas.width = window.innerWidth / window.devicePixelRatio;
+            canvas.height = window.innerHeight / window.devicePixelRatio;
             demo = new demos[sid].demo(rust_wasm, canvas.transferControlToOffscreen(), canvas, config, demoFolder, stats, simPanel);
         }
         await demo.init();

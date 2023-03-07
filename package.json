@@ -1,9 +1,9 @@
 {
     "private": true,
     "scripts": {
-        "build:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=\"--shared-memory --import-memory\"' webpack --mode development --env parallel",
-        "release:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=\"--shared-memory --import-memory\"' webpack --mode production --env parallel",
-        "serve-dev:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=\"--shared-memory\"' webpack serve --mode development --env parallel",
+        "build:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack --mode development --env parallel",
+        "release:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack --mode production --env parallel",
+        "serve-dev:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack serve --mode development --env parallel",
         "serve:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack serve --mode production --env parallel",
         "build:st": "webpack --mode development",
         "release:st": "webpack --mode production",
@@ -31,7 +31,7 @@
         "comlink": "^4.4.1",
         "lil-gui": "^0.18.0",
         "stats.js": "^0.17.0",
-        "three": "^0.149.0",
-        "wasm-feature-detect": "^1.5.0"
+        "three": "^0.150.1",
+        "wasm-feature-detect": "^1.5.1"
     }
 }

@@ -1,60 +1,190 @@
 import * as Comlink from 'comlink';
 import * as Stats from 'stats.js';
-//import { memory } from '../pkg-parallel/parallel_bg.wasm';
-import { ParallelClothSimulation } from '../pkg-parallel';
-import { Scene3D, Scene3DConfig } from './lib';
+import { ParallelClothSimulation, SolverKind } from '../pkg-parallel';
+import { Grabber, resizeThreeScene, Scene3D, Scene3DConfig } from './lib';
 import { initThreeScene } from './lib';
 import * as THREE from 'three';
-import GUI from 'lil-gui';
+import { EventDispatcher } from 'three';
+import { Controller } from 'lil-gui';
+import './parallel_cloth_16_transfer'; // must be included to extend Comlink transfer to events
+
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 30;
+const DEFAULT_CLOTH_NUM_VERTICES_WIDTH = 256;
+const DEFAULT_CLOTH_NUM_VERTICES_HEIGHT = 256;
+const PARTICLE_POINT_SIZE = 0.01;
 
-export type HandlersWrap = {
-    handlers: Handlers;
-}
-
-export type Handlers = {
-    demo: ParallelClothDemoInternal;
-    numThreads: number;
-    init: (canvas: OffscreenCanvas, canvasElement: HTMLElement, config: Scene3DConfig, folder: GUI, stats: Stats, simPanel: Stats.Panel) => void;
-    reset: () => void;
-};
-
-type ParallelClothDemoInternalProps = {
+type ParallelClothDemoWorkerProps = {
     triangles: number;
     vertices: number;
+    constraints: number;
     animate: boolean;
-    showEdges: boolean;
+    showVertices: boolean;
+    solver: string; // enum string value
     substeps: number;
 };
 
-class ParallelClothDemoInternal {
+const noop = () => { };
+
+// See comment in `parallel_cloth_16_transfer.ts`. Essentially, we need a way to allow
+// event subscriptions in our worker context for the OrbitControls and Grabber that
+// we define in ParallelClothDemoWorker. Here, we create an intermediate class
+// which is extended by ParallelClothDemoWorker and itself extends EventDispatcher
+// allowing the worker to be bound to main thread event listeners and allowing `this` 
+// to be passed as the input element to OrbitControls and Grabber. In addition to 
+// implementing EventDispatcher, a few properties and methods from HTMLElement are 
+// necessary. See `parallel_cloth_16.ts` for the window event bindings, such as 
+// `onmousedown`.
+export class ProxiedHTMLElement extends EventDispatcher {
+    style = {};
+    width: number;
+    height: number;
+    top: number;
+    left: number;
+
+    constructor() {
+        super();
+    }
+
+    handleEvent(e: Event) {
+        e.preventDefault = noop;
+        e.stopPropagation = noop;
+        this.dispatchEvent(e);
+    }
+
+    setSize(left: number, top: number, width: number, height: number) {
+        this.left = left;
+        this.top = top;
+        this.width = width;
+        this.height = height;
+    }
+
+    get clientWidth() {
+        return this.width;
+    }
+
+    get clientHeight() {
+        return this.height;
+    }
+
+    getBoundingClientRect() {
+        return {
+            left: this.left,
+            top: this.top,
+            width: this.width,
+            height: this.height,
+            right: this.left + this.width,
+            bottom: this.top + this.height,
+        };
+    }
+
+    // Used by OrbitControls--could implement in the future
+    setPointerCapture() { }
+    releasePointerCapture() { }
+}
+
+// Exported using Comlink to define a Web Worker, which allows us to take advantage
+// of threading for our multi-threaded parallel cloth solver.
+// See https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
+export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     sim: ParallelClothSimulation;
     scene: Scene3D;
-    props: ParallelClothDemoInternalProps;
+    props: ParallelClothDemoWorkerProps;
 
-    //private grabber: Grabber;
+    private freeFlag = false;
+    private maxSimMs = 0;
+    private grabber: Grabber;
     private triMesh: THREE.Mesh;
     private points: THREE.Points;
     private sphereMesh: THREE.Mesh;
     private positions: Float32Array; // mapped to WASM memory
+    private stats: Stats;
+    private simPanel: Stats.Panel;
 
-    constructor(rust_wasm: any, canvas: OffscreenCanvas, canvasElement: HTMLElement, config: Scene3DConfig, folder: GUI) {
-        this.scene = initThreeScene(canvas, canvasElement, config);
+    constructor(canvas: OffscreenCanvas, config: Scene3DConfig, stats: Stats, simPanel: Stats.Panel, devicePixelRatio: number) {
+        super();
 
-        this.sim = new rust_wasm.ParallelClothSimulation(30, 256, 256); // LVSTODO pass params
-        this.initControls(folder, canvas);
+        // for `this` cast, see comment on ProxiedHTMLElement
+        this.scene = initThreeScene(canvas, this as unknown as HTMLElement, config, devicePixelRatio);
+        this.stats = stats;
+        this.simPanel = simPanel;
     }
 
     async init() {
+        const rust_wasm = await import('../pkg-parallel');
+
+        // must be included to init rayon thread pool with web workers
+        const numThreads = navigator.hardwareConcurrency;
+        await rust_wasm.default();
+        await rust_wasm.initThreadPool(numThreads);
+
+        this.sim = new rust_wasm.ParallelClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_CLOTH_NUM_VERTICES_WIDTH, DEFAULT_CLOTH_NUM_VERTICES_HEIGHT);
+
+        this.props = {
+            triangles: this.sim.num_tris,
+            vertices: this.sim.num_particles,
+            constraints: this.sim.num_dist_constraints,
+            animate: true,
+            showVertices: false,
+            solver: SolverKind[this.sim.solver_kind],
+            substeps: this.sim.num_substeps,
+        };
+
         this.initMesh();
+    }
+
+    beginLoop(animateController: Controller) {
+        // Grab interaction handler. For `this` cast, see comment on ProxiedHTMLElement
+        this.grabber = new Grabber(this.sim, this as unknown as HTMLElement, this.scene, this.props, animateController);
+
+        // Main loop on the worker thread. Execute until `free` is called to set `this.freeFlag`.
+        const step = () => {
+            this.stats.begin(); // collect perf data for stats.js
+            let simTimeMs = performance.now();
+            this.update();
+            simTimeMs = performance.now() - simTimeMs;
+            this.scene.renderer.render(this.scene.scene, this.scene.camera);
+            this.simPanel.update(simTimeMs, (this.maxSimMs = Math.max(this.maxSimMs, simTimeMs)));
+            this.stats.end();
+            if (!this.freeFlag) {
+                requestAnimationFrame(step);
+            } else {
+                delete this.sim;
+                return;
+            }
+        }
+        requestAnimationFrame(step);
+    }
+
+    free() {
+        this.freeFlag = true;
+    }
+
+    // GUI in main thread cannot directly access `this.props`, so we provide helper methods
+    // to set properties via messages through Comlink
+    showVertices(s: boolean) {
+        this.points.visible = s;
+        this.triMesh.visible = !s;
+    }
+    setSubsteps(n: number) {
+        this.sim.num_substeps = n;
+    }
+    setAnimate(b: boolean) {
+        this.props.animate = b;
+    }
+    setSolver(s: string) {
+        this.sim.solver_kind = Object.values(SolverKind).indexOf(s);
+    }
+
+    resize(width: number, height: number) {
+        resizeThreeScene(this.scene, width, height, false);
     }
 
     update() {
         if (this.props.animate) {
             this.sim.step();
-            this.updateMesh();
-            //this.grabber.increaseTime(this.sim.dt);
+            this.updateMesh(); // TODO: might want to move this out of the simulate timings?
+            this.grabber.increaseTime(this.sim.dt);
         }
     }
 
@@ -66,6 +196,13 @@ class ParallelClothDemoInternal {
     private initMesh() {
         const tri_ids = Array.from(this.sim.tri_ids);
 
+        // TODO: currently, `import { memory } from '../pkg-parallel/parallel_bg.wasm'` gives the
+        // following error from webpack. It seems that this could be a bug related to either
+        // webpack or wasm-pack. Need to revisit in the future once relevant Github issues are
+        // resolved.
+        //      ERROR in ./pkg-parallel/parallel_bg.wasm
+        //      Module parse failed: Unexpected section: 0xc
+        //
         // NOTE: ordering matters here. The above sim.*_ids getters are lazily implemented and 
         // allocate into a new Vec to collect results into at runtime. This means a heap allocation
         // occurs and therefore the location in memory for particle positions could change. Here, we
@@ -74,111 +211,51 @@ class ParallelClothDemoInternal {
         // moving forward.
         //const positionsPtr = this.sim.pos;
         //this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
+
+        // Per above, in the meantime, we simply store data in both the worker thread and WASM
+        // context and copy upon each update.
         this.positions = new Float32Array(this.sim.num_particles * 3);
 
         // visual tri mesh
         let geometry = new THREE.BufferGeometry();
-        let positionAttrib = new THREE.BufferAttribute(this.positions, 3);
+        let positionAttrib = new THREE.BufferAttribute(this.positions, 3); // vertex positions shared by both mesh and points
         geometry.setAttribute('position', positionAttrib);
         geometry.setIndex(tri_ids);
         const visMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, side: THREE.DoubleSide });
         this.triMesh = new THREE.Mesh(geometry, visMaterial);
         this.triMesh.castShadow = true;
-        this.triMesh.visible = false; // LVSTODO: testing
         this.triMesh.layers.enable(1);
         this.scene.scene.add(this.triMesh);
         geometry.computeBoundingSphere();
 
         geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', positionAttrib);
-        const pointsMaterial = new THREE.PointsMaterial({ color: 0x0000ff, size: 0.015 });
+        const pointsMaterial = new THREE.PointsMaterial({ color: 0xff0000, size: PARTICLE_POINT_SIZE });
         this.points = new THREE.Points(geometry, pointsMaterial);
         this.points.castShadow = false;
-        this.points.visible = true; // LVSTODO: testing
+        this.points.visible = false;
         this.scene.scene.add(this.points);
 
         geometry = new THREE.SphereGeometry(this.sim.obstacle_radius);
-        const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.FrontSide });
+        const obstacleMaterial = new THREE.MeshPhongMaterial({ color: 0xf78a1d, side: THREE.FrontSide });
         this.sphereMesh = new THREE.Mesh(geometry, obstacleMaterial);
         this.sphereMesh.castShadow = true;
         this.sphereMesh.receiveShadow = true;
+        this.sphereMesh.position.fromArray(this.sim.obstacle_pos); // static, so only need to set upon init
         this.scene.scene.add(this.sphereMesh);
-        geometry.computeVertexNormals();
 
         this.updateMesh();
     }
 
     private updateMesh() {
-        this.sphereMesh.position.fromArray(this.sim.obstacle_pos);
+        // See comment regarding copying in `initMesh`
+        (this.triMesh.geometry.attributes.position as THREE.BufferAttribute).copyArray(this.sim.get_pos_copy());
 
-        //this.triMesh.geometry.computeVertexNormals();
-        this.positions = this.sim.get_pos_copy();
-        (this.triMesh.geometry.attributes.position as THREE.BufferAttribute).copyArray(this.positions);
         this.triMesh.geometry.attributes.position.needsUpdate = true;
-        this.triMesh.geometry.computeBoundingSphere();
         this.points.geometry.attributes.position.needsUpdate = true;
-    }
-
-    private initControls(folder: GUI, _canvas: OffscreenCanvas) {
-        console.log(folder);
-
-        this.props = {
-            triangles: this.sim.num_tris,
-            vertices: this.sim.num_particles,
-            animate: true,
-            showEdges: false,
-            substeps: DEFAULT_NUM_SOLVER_SUBSTEPS,
-        };
-        folder.add(this.props, 'triangles'); // disable doesnt work for some reason?
-        folder.add(this.props, 'vertices');
-
-        /*
-        //folder.add(this.props, 'substeps').min(1).max(30).step(1).onChange((v: number) => (this.sim.solver_substeps = v));
-        folder.add(this.props, 'showEdges').name('show edges').onChange((s: boolean) => {
-            this.points.visible = s;
-            this.triMesh.visible = !s;
-        });
-        const animateController = folder.add(this.props, 'animate');
-        */
-
-        // grab interaction handler
-        //this.grabber = new Grabber(this.sim, canvas, this.scene, this.props, animateController);
+        this.triMesh.geometry.computeVertexNormals();
+        this.triMesh.geometry.computeBoundingSphere();
     }
 }
 
-const initHandlers = async (): Promise<Handlers> => {
-    const rust_wasm = await import('../pkg-parallel');
-    let maxSimMs = 0;
-
-    // must be included to init rayon thread pool with web workers
-    const numThreads = navigator.hardwareConcurrency;
-    await rust_wasm.default();
-    await rust_wasm.initThreadPool(numThreads);
-
-    return Comlink.proxy({
-        demo: null,
-        numThreads: numThreads,
-        init(canvas: OffscreenCanvas, canvasElement: HTMLElement, config: Scene3DConfig, folder: GUI, stats: Stats, simPanel: Stats.Panel) {
-            this.demo = new ParallelClothDemoInternal(rust_wasm, canvas, canvasElement, config, folder);
-            this.demo.init();
-
-
-            const step = () => {
-                stats.begin(); // collect perf data for stats.js
-                let simTimeMs = performance.now();
-                this.demo.update();
-                simTimeMs = performance.now() - simTimeMs;
-                this.demo.scene.renderer.render(this.demo.scene.scene, this.demo.scene.camera);
-                simPanel.update(simTimeMs, (maxSimMs = Math.max(maxSimMs, simTimeMs)));
-                stats.end();
-                requestAnimationFrame(step);
-            }
-            requestAnimationFrame(step);
-        },
-        reset() {
-            this.sim.reset();
-        }
-    });
-};
-
-Comlink.expose({ handlers: initHandlers() });
+Comlink.expose(ParallelClothDemoWorker);
