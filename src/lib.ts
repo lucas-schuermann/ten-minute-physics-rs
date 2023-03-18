@@ -1,4 +1,3 @@
-import * as Comlink from 'comlink';
 import { Controller } from 'lil-gui';
 import * as THREE from 'three';
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -243,6 +242,7 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElemen
     renderer.shadowMap.enabled = true;
     renderer.setPixelRatio(devicePixelRatio);
     if (config.offscreen) {
+        // LVSTODO
         // OffscreenCanvas has already been resized, only need to set GL viewport
         //renderer.setViewport(inputElement.clientWidth / devicePixelRatio, inputElement.clientHeight / devicePixelRatio);
         //renderer.setSize(inputElement.clientWidth, inputElement.clientHeight);

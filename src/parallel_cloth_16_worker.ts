@@ -15,6 +15,7 @@ const DEFAULT_CLOTH_NUM_VERTICES_HEIGHT = 256;
 const PARTICLE_POINT_SIZE = 0.01;
 
 type ParallelClothDemoWorkerProps = {
+    threads: number;
     triangles: number;
     vertices: number;
     constraints: number;
@@ -100,6 +101,7 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     private positions: Float32Array; // mapped to WASM memory
     private stats: Stats;
     private simPanel: Stats.Panel;
+    private wasmMemory: WebAssembly.Memory; // store reference returned from module.default()
 
     constructor(canvas: OffscreenCanvas, config: Scene3DConfig, stats: Stats, simPanel: Stats.Panel, devicePixelRatio: number) {
         super();
@@ -115,12 +117,14 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
 
         // must be included to init rayon thread pool with web workers
         const numThreads = navigator.hardwareConcurrency;
-        await rust_wasm.default();
+        const { memory } = await rust_wasm.default();
+        this.wasmMemory = memory;
         await rust_wasm.initThreadPool(numThreads);
 
         this.sim = new rust_wasm.ParallelClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_CLOTH_NUM_VERTICES_WIDTH, DEFAULT_CLOTH_NUM_VERTICES_HEIGHT);
 
         this.props = {
+            threads: numThreads,
             triangles: this.sim.num_tris,
             vertices: this.sim.num_particles,
             constraints: this.sim.num_dist_constraints,
@@ -196,25 +200,14 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     private initMesh() {
         const tri_ids = Array.from(this.sim.tri_ids);
 
-        // TODO: currently, `import { memory } from '../pkg-parallel/parallel_bg.wasm'` gives the
-        // following error from webpack. It seems that this could be a bug related to either
-        // webpack or wasm-pack. Need to revisit in the future once relevant Github issues are
-        // resolved.
-        //      ERROR in ./pkg-parallel/parallel_bg.wasm
-        //      Module parse failed: Unexpected section: 0xc
-        //
-        // NOTE: ordering matters here. The above sim.*_ids getters are lazily implemented and 
-        // allocate into a new Vec to collect results into at runtime. This means a heap allocation
+        // NOTE: ordering matters here. The above sim.*_ids getter is lazily implemented and 
+        // allocates into a new Vec to collect results into at runtime. This means a heap allocation
         // occurs and therefore the location in memory for particle positions could change. Here, we
         // store the pointer to the positions buffer location after these allocs. In the WASM
         // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
         // moving forward.
-        //const positionsPtr = this.sim.pos;
-        //this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
-
-        // Per above, in the meantime, we simply store data in both the worker thread and WASM
-        // context and copy upon each update.
-        this.positions = new Float32Array(this.sim.num_particles * 3);
+        const positionsPtr = this.sim.pos;
+        this.positions = new Float32Array(this.wasmMemory.buffer, positionsPtr, this.sim.num_particles * 3);
 
         // visual tri mesh
         let geometry = new THREE.BufferGeometry();
@@ -248,12 +241,9 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     }
 
     private updateMesh() {
-        // See comment regarding copying in `initMesh`
-        (this.triMesh.geometry.attributes.position as THREE.BufferAttribute).copyArray(this.sim.get_pos_copy());
-
         this.triMesh.geometry.attributes.position.needsUpdate = true;
         this.points.geometry.attributes.position.needsUpdate = true;
-        this.triMesh.geometry.computeVertexNormals();
+        this.triMesh.geometry.computeVertexNormals(); // LVSTODO: here and elsewhere, maybe don't need to if we are displaying edges/vertices?
         this.triMesh.geometry.computeBoundingSphere();
     }
 }

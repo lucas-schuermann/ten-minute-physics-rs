@@ -4,7 +4,6 @@ use glam::{vec3, Vec3};
 use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 
-#[cfg(feature = "parallel")]
 // must be exported to init rayon thread pool with web workers
 pub use wasm_bindgen_rayon::init_thread_pool;
 
@@ -79,13 +78,12 @@ pub struct ParallelClothSimulation {
 }
 
 // mark as unsafe, as it's possible to provide parameters that cause
-// undefined behaviour
+// undefined behavior
 unsafe fn add_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize, rhs: Vec3) {
     let vec = vec_ptr.read();
     let first_elem = vec.as_mut_ptr();
     *first_elem.add(idx) += rhs;
 }
-
 unsafe fn get_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize) -> Vec3 {
     let vec = vec_ptr.read();
     let first_elem = vec.as_mut_ptr();
@@ -250,10 +248,6 @@ impl ParallelClothSimulation {
     #[wasm_bindgen(getter)]
     pub fn obstacle_pos(&self) -> Vec<f32> {
         self.obstacle_pos.to_array().to_vec()
-    }
-
-    pub fn get_pos_copy(&self) -> Vec<f32> {
-        self.pos.iter().flat_map(|v| v.to_array()).collect()
     }
 
     #[wasm_bindgen(getter)]

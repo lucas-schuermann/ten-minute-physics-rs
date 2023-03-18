@@ -12,11 +12,12 @@ import { FlipDemo, FlipDemoConfig } from './src/flip_18';
 import { BodyChainDemo, BodyChainDemoConfig } from './src/body_chain_challenge';
 import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/fluid_2d_challenge';
 import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth_16';
+import { threads } from 'wasm-feature-detect';
 
 import('./pkg').then(async rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
 
-    const demos: Record<string, { title: string, config: SceneConfig, demo: any }> = {
+    let demos: Record<string, { title: string, config: SceneConfig, demo: any }> = {
         '10-SoftBodies': {
             title: 'Soft Body Simulation',
             config: SoftBodiesDemoConfig,
@@ -68,6 +69,12 @@ import('./pkg').then(async rust_wasm => {
             demo: PositionBasedFluidDemo,
         }
     };
+    // check if required features are supported, else remove unsupported demos
+    if (!(await threads()) || !HTMLCanvasElement.prototype.transferControlToOffscreen) {
+        console.log("Required features not supported for 16-ParallelCloth. Disabling selection.");
+        delete demos['16-ParallelCloth'];
+    }
+
     const demoNames = Object.keys(demos);
     let canvas = $('canvas') as HTMLCanvasElement;
     let demo: Demo<any, any>;
@@ -155,6 +162,12 @@ import('./pkg').then(async rust_wasm => {
             scene = init2DScene(config);
         }
         $('title').innerText = demos[sid].title;
+
+        // cleanup existing demo if required
+        if (demo?.free) {
+            demo.free();
+        }
+        demo = null; // LVSTODO: we're leaking memory (3MB) when moving between selections. think arraybuffer in demo?
         if (!(config.kind === "3D" && config.offscreen)) {
             demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);
         } else {

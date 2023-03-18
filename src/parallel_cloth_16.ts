@@ -7,8 +7,7 @@ import { Demo, enumToValueList, Scene3D, Scene3DConfig } from './lib';
 import './parallel_cloth_16_transfer'; // must be included to extend Comlink transfer to events
 
 // defined in worker
-type ParallelClothDemoProps = {
-};
+type ParallelClothDemoProps = {};
 
 const ParallelClothDemoConfig: Scene3DConfig = {
     kind: '3D',
@@ -74,6 +73,7 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
         // does not support two-way binding, so we use helper methods,
         // e.g. `this.sim.setSubsteps`
         const props = await this.sim.props;
+        folder.add(props, 'threads').disable();
         folder.add(props, 'triangles').disable();
         folder.add(props, 'vertices').disable();
         folder.add(props, 'constraints').disable();
@@ -84,8 +84,7 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
     }
 
     // noop since main loop is in worker
-    update() {
-    }
+    update() { }
 
     async reset() {
         await this.sim.reset();
