@@ -10,6 +10,7 @@ pub use wasm_bindgen_rayon::init_thread_pool;
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
 const TIME_STEP: f32 = 1.0 / 60.0;
 const JACOBI_SCALE: f32 = 0.2;
+const VEL_LIMIT_SCALE: f32 = 0.01;
 const CLOTH_SPACING: f32 = 0.01;
 const CLOTH_THICKNESS: f32 = 0.001;
 const FRICTION: f32 = 0.01;
@@ -55,6 +56,7 @@ pub struct ParallelClothSimulation {
     #[wasm_bindgen(readonly)]
     pub dt: f32,
     inv_dt: f32,
+    max_vel: f32,
 
     tri_ids: Vec<[usize; 3]>,
     passes: Vec<SolverPass>,
@@ -219,6 +221,7 @@ impl ParallelClothSimulation {
             num_substeps,
             dt,
             inv_dt: 1.0 / dt,
+            max_vel: VEL_LIMIT_SCALE / dt,
 
             tri_ids,
             passes,
@@ -274,6 +277,7 @@ impl ParallelClothSimulation {
         self.num_substeps = num_substeps;
         self.dt = TIME_STEP / Into::<f32>::into(num_substeps);
         self.inv_dt = 1.0 / self.dt;
+        self.max_vel = VEL_LIMIT_SCALE / self.dt;
     }
 
     fn integrate(&mut self) {
@@ -283,12 +287,18 @@ impl ParallelClothSimulation {
             .zip_eq(&mut self.prev)
             .zip_eq(&mut self.vel)
             .for_each(|(((i, pos), prev), vel)| {
-                *vel = (*pos - *prev) / self.dt;
-                *prev = *pos;
                 if self.inv_mass[i] == 0.0 {
                     return;
                 }
+
+                *vel = (*pos - *prev) / self.dt;
+                *prev = *pos;
+
                 *vel += GRAVITY * self.dt;
+                let v = vel.length();
+                if v > self.max_vel {
+                    *vel *= self.max_vel / v;
+                }
                 *pos += *vel * self.dt;
 
                 // collisions

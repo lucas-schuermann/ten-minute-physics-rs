@@ -230,7 +230,6 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
         geometry.setAttribute('position', positionAttrib);
         const pointsMaterial = new THREE.PointsMaterial({ color: 0xff0000, size: PARTICLE_POINT_SIZE });
         this.points = new THREE.Points(geometry, pointsMaterial);
-        this.points.castShadow = false;
         this.points.visible = false;
         this.scene.scene.add(this.points);
 

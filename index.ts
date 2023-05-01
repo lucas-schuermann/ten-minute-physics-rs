@@ -12,7 +12,6 @@ import { FlipDemo, FlipDemoConfig } from './src/flip_18';
 import { BodyChainDemo, BodyChainDemoConfig } from './src/body_chain_challenge';
 import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/fluid_2d_challenge';
 import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth_16';
-import { threads } from 'wasm-feature-detect';
 
 import('./pkg').then(async rust_wasm => {
     const { memory } = await rust_wasm.default();
@@ -74,7 +73,7 @@ import('./pkg').then(async rust_wasm => {
 
     let canvas = $('canvas') as HTMLCanvasElement;
     // check if required features are supported, else remove unsupported demos
-    if (!(await threads()) || !HTMLCanvasElement.prototype.transferControlToOffscreen) {
+    if (!Boolean((window as any).chrome)) {
         console.log("Required features not supported for 16-ParallelCloth. Disabling selection.");
         delete demos['16-ParallelCloth'];
     }

@@ -203,23 +203,23 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElemen
     spotLight.penumbra = 0.2;
     spotLight.position.set(2, 3, 3);
     spotLight.castShadow = true;
-    spotLight.shadow.camera.near = 3;
+    spotLight.shadow.camera.near = 1;
     spotLight.shadow.camera.far = 10;
-    spotLight.shadow.mapSize.width = 1024;
-    spotLight.shadow.mapSize.height = 1024;
+    spotLight.shadow.mapSize.width = 2056;
+    spotLight.shadow.mapSize.height = 2056;
     scene.add(spotLight);
 
     const dirLight = new THREE.DirectionalLight(0x55505a, 1);
     dirLight.position.set(0, 3, 0);
     dirLight.castShadow = true;
-    dirLight.shadow.camera.near = 1;
+    dirLight.shadow.camera.near = 0.1;
     dirLight.shadow.camera.far = 10;
-    dirLight.shadow.camera.right = 1;
-    dirLight.shadow.camera.left = - 1;
-    dirLight.shadow.camera.top = 1;
-    dirLight.shadow.camera.bottom = - 1;
-    dirLight.shadow.mapSize.width = 1024;
-    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.camera.right = 4;
+    dirLight.shadow.camera.left = -4;
+    dirLight.shadow.camera.top = 4;
+    dirLight.shadow.camera.bottom = -4;
+    dirLight.shadow.mapSize.width = 2056;
+    dirLight.shadow.mapSize.height = 2056;
     scene.add(dirLight);
 
     // geometry
@@ -240,6 +240,7 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElemen
     // renderer
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setPixelRatio(devicePixelRatio);
 
     if (config.offscreen) {

@@ -73,6 +73,7 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.colors = new Float32Array(3 * this.sim.num_bodies);
         this.mesh.instanceColor = new THREE.InstancedBufferAttribute(this.colors, 3, false, 1);
+        this.mesh.castShadow = true;
         this.scene.scene.add(this.mesh);
 
         // Here, we store the pointer to the positions buffer location after the simulation is
