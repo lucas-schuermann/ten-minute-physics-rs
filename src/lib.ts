@@ -240,7 +240,6 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElemen
     // renderer
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setPixelRatio(devicePixelRatio);
 
     if (config.offscreen) {
