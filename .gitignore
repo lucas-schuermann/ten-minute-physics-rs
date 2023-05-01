@@ -4,5 +4,4 @@
 # npm/webpack/wasm
 dist/
 pkg/
-pkg-parallel/
 node_modules/

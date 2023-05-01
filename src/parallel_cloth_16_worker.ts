@@ -1,6 +1,6 @@
 import * as Comlink from 'comlink';
 import * as Stats from 'stats.js';
-import { ParallelClothSimulation, SolverKind } from '../pkg-parallel';
+import { ParallelClothSimulation, SolverKind } from '../pkg';
 import { Grabber, resizeThreeScene, Scene3D, Scene3DConfig } from './lib';
 import { initThreeScene } from './lib';
 import * as THREE from 'three';
@@ -92,6 +92,7 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     scene: Scene3D;
     props: ParallelClothDemoWorkerProps;
 
+    private memory: WebAssembly.Memory;
     private freeFlag = false;
     private maxSimMs = 0;
     private grabber: Grabber;
@@ -99,26 +100,26 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     private points: THREE.Points;
     private sphereMesh: THREE.Mesh;
     private positions: Float32Array; // mapped to WASM memory
+    private normals: Float32Array; // mapped to WASM memory
     private stats: Stats;
     private simPanel: Stats.Panel;
-    private wasmMemory: WebAssembly.Memory; // store reference returned from module.default()
 
-    constructor(canvas: OffscreenCanvas, config: Scene3DConfig, stats: Stats, simPanel: Stats.Panel, devicePixelRatio: number) {
+    constructor(stats: Stats, simPanel: Stats.Panel) {
         super();
-
-        // for `this` cast, see comment on ProxiedHTMLElement
-        this.scene = initThreeScene(canvas, this as unknown as HTMLElement, config, devicePixelRatio);
         this.stats = stats;
         this.simPanel = simPanel;
     }
 
-    async init() {
-        const rust_wasm = await import('../pkg-parallel');
+    async init(canvas: OffscreenCanvas, config: Scene3DConfig, devicePixelRatio: number) {
+        // for `this` cast, see comment on ProxiedHTMLElement
+        this.scene = initThreeScene(canvas, this as unknown as HTMLElement, config, devicePixelRatio);
+
+        const rust_wasm = await import('../pkg');
 
         // must be included to init rayon thread pool with web workers
         const numThreads = navigator.hardwareConcurrency;
         const { memory } = await rust_wasm.default();
-        this.wasmMemory = memory;
+        this.memory = memory;
         await rust_wasm.initThreadPool(numThreads);
 
         this.sim = new rust_wasm.ParallelClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_CLOTH_NUM_VERTICES_WIDTH, DEFAULT_CLOTH_NUM_VERTICES_HEIGHT);
@@ -147,6 +148,7 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
             let simTimeMs = performance.now();
             this.update();
             simTimeMs = performance.now() - simTimeMs;
+            this.updateMesh();
             this.scene.renderer.render(this.scene.scene, this.scene.camera);
             this.simPanel.update(simTimeMs, (this.maxSimMs = Math.max(this.maxSimMs, simTimeMs)));
             this.stats.end();
@@ -187,7 +189,6 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     update() {
         if (this.props.animate) {
             this.sim.step();
-            this.updateMesh(); // TODO: might want to move this out of the simulate timings?
             this.grabber.increaseTime(this.sim.dt);
         }
     }
@@ -207,12 +208,16 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
         // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
         // moving forward.
         const positionsPtr = this.sim.pos;
-        this.positions = new Float32Array(this.wasmMemory.buffer, positionsPtr, this.sim.num_particles * 3);
+        const normalsPtr = this.sim.normals;
+        this.positions = new Float32Array(this.memory.buffer, positionsPtr, this.sim.num_particles * 3);
+        this.normals = new Float32Array(this.memory.buffer, normalsPtr, this.sim.num_particles * 3);
 
         // visual tri mesh
         let geometry = new THREE.BufferGeometry();
         let positionAttrib = new THREE.BufferAttribute(this.positions, 3); // vertex positions shared by both mesh and points
         geometry.setAttribute('position', positionAttrib);
+        let normalAttrib = new THREE.BufferAttribute(this.normals, 3);
+        geometry.setAttribute('normal', normalAttrib);
         geometry.setIndex(tri_ids);
         const visMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, side: THREE.DoubleSide });
         this.triMesh = new THREE.Mesh(geometry, visMaterial);
@@ -243,7 +248,10 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
     private updateMesh() {
         this.triMesh.geometry.attributes.position.needsUpdate = true;
         this.points.geometry.attributes.position.needsUpdate = true;
-        this.triMesh.geometry.computeVertexNormals(); // LVSTODO: here and elsewhere, maybe don't need to if we are displaying edges/vertices?
+        if (!this.props.showVertices) {
+            this.sim.update_normals();
+            this.triMesh.geometry.attributes.normal.needsUpdate = true;
+        }
         this.triMesh.geometry.computeBoundingSphere();
     }
 }

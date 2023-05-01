@@ -4,8 +4,7 @@ use std::f64::consts::PI;
 
 use glam::Vec2;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::Clamped;
-use web_sys::{CanvasRenderingContext2d, ImageData};
+use web_sys::CanvasRenderingContext2d;
 
 use crate::util::get_sci_color_255;
 
@@ -73,7 +72,6 @@ pub struct FluidSimulation {
     width: f32,
     height: f32,
     c_scale: f32,
-    render_buffer: Vec<u8>,
     context: CanvasRenderingContext2d,
     pub show_obstacle: bool,
     pub show_streamlines: bool,
@@ -119,7 +117,6 @@ impl FluidSimulation {
         let num_cells_y = f32::floor(domain_height / h) as usize + 2;
         let num_cells = num_cells_x * num_cells_y;
 
-        let render_buffer = vec![255; width as usize * height as usize * 4]; // rgba
         let mut fluid = Self {
             density: DEFAULT_DENSITY,
             h,
@@ -148,7 +145,6 @@ impl FluidSimulation {
             width,
             height,
             c_scale: height / domain_height,
-            render_buffer,
             context,
 
             show_obstacle: true,
@@ -470,15 +466,11 @@ impl FluidSimulation {
         self.height - y * self.c_scale
     }
 
-    #[allow(clippy::too_many_lines)]
-    pub fn draw(&mut self) {
+    pub fn draw_buffer(&mut self, render_buffer: &mut [u8]) {
         let h = self.h;
         let cx = f32::floor(self.c_scale * h) as usize + 1;
         let cy = f32::floor(self.c_scale * h) as usize + 1;
         let n = self.num_cells_y;
-        let black_hex: JsValue = JsValue::from("#000000");
-        let grey_hex: JsValue = JsValue::from("#DDDDDD");
-        let white_hex: JsValue = JsValue::from("#FFFFFF");
 
         let mut color = [255; 4];
 
@@ -528,24 +520,20 @@ impl FluidSimulation {
                     for _ in 0..cx {
                         p += 4;
                         // y-coord extrema are cut off
-                        if p <= self.render_buffer.len() {
-                            self.render_buffer[p - 4..p].copy_from_slice(&color);
+                        if p <= render_buffer.len() {
+                            render_buffer[p - 4..p].copy_from_slice(&color);
                         }
                     }
                 }
             }
         }
+    }
 
+    pub fn draw_canvas(&mut self) {
         let c = &self.context;
-
-        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
-            Clamped(&self.render_buffer),
-            self.width as u32,
-            self.height as u32,
-        )
-        .expect("failed to create image data mapped to render buffer");
-        c.put_image_data(&image_data, 0.0, 0.0)
-            .expect("failed to write render buffer to canvas");
+        let black_hex: JsValue = JsValue::from("#000000");
+        let grey_hex: JsValue = JsValue::from("#DDDDDD");
+        let white_hex: JsValue = JsValue::from("#FFFFFF");
 
         if self.show_velocities {
             c.set_stroke_style(&black_hex);

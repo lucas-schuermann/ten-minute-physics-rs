@@ -241,11 +241,9 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElemen
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
     renderer.shadowMap.enabled = true;
     renderer.setPixelRatio(devicePixelRatio);
+
     if (config.offscreen) {
-        // LVSTODO
-        // OffscreenCanvas has already been resized, only need to set GL viewport
-        //renderer.setViewport(inputElement.clientWidth / devicePixelRatio, inputElement.clientHeight / devicePixelRatio);
-        //renderer.setSize(inputElement.clientWidth, inputElement.clientHeight);
+        renderer.setSize(inputElement.clientWidth, inputElement.clientHeight, false);
     } else {
         renderer.setSize(window.innerWidth, window.innerHeight);
     }

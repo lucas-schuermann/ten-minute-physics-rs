@@ -1,37 +1,31 @@
 {
     "private": true,
     "scripts": {
-        "build:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack --mode development --env parallel",
-        "release:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack --mode production --env parallel",
-        "serve-dev:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack serve --mode development --env parallel",
-        "serve:mt": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-args=--shared-memory -C link-args=--import-memory' webpack serve --mode production --env parallel",
-        "build:st": "webpack --mode development",
-        "release:st": "webpack --mode production",
-        "serve-dev:st": "webpack serve --mode development",
-        "serve:st": "webpack serve --mode production",
-        "build": "run-p build:st build:mt",
-        "release": "run-p release:st release:mt"
+        "build": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' webpack --mode development",
+        "release": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' webpack --mode production",
+        "serve-dev": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' webpack serve --mode development",
+        "serve": "cross-env RUSTUP_TOOLCHAIN=nightly RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' webpack serve --mode production"
     },
     "devDependencies": {
         "@types/stats.js": "^0.17.0",
-        "@types/three": "^0.149.0",
+        "@types/three": "^0.150.1",
         "@wasm-tool/wasm-pack-plugin": "1.6.0",
         "cross-env": "^7.0.3",
         "html-webpack-plugin": "^5.5.0",
         "npm-run-all": "^4.1.5",
         "text-encoding": "^0.7.0",
         "ts-loader": "^9.4.2",
-        "typescript": "^5.0.2",
+        "typescript": "^5.0.4",
         "wasm-pack": "^0.10.3",
-        "webpack": "^5.76.2",
+        "webpack": "^5.79.0",
         "webpack-cli": "^5.0.1",
-        "webpack-dev-server": "^4.13.0"
+        "webpack-dev-server": "^4.13.2"
     },
     "dependencies": {
         "comlink": "^4.4.1",
         "lil-gui": "^0.18.1",
         "stats.js": "^0.17.0",
-        "three": "^0.150.1",
+        "three": "^0.151.3",
         "wasm-feature-detect": "^1.5.1"
     }
 }

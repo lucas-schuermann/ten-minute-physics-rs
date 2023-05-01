@@ -72,6 +72,7 @@ pub struct ParallelClothSimulation {
     obstacle_pos: Vec3,
     #[wasm_bindgen(readonly)]
     pub obstacle_radius: f32,
+    normals: Vec<Vec3>,
 
     grab_inv_mass: f32,
     grab_id: Option<usize>,
@@ -234,6 +235,7 @@ impl ParallelClothSimulation {
 
             obstacle_pos: DEFAULT_OBSTACLE_POS,
             obstacle_radius: DEFAULT_OBSTACLE_RADIUS,
+            normals: vec![Vec3::ZERO; num_particles],
 
             grab_inv_mass: 0.0,
             grab_id: None,
@@ -243,6 +245,11 @@ impl ParallelClothSimulation {
     #[wasm_bindgen(getter)]
     pub fn pos(&self) -> *const Vec3 {
         self.pos.as_ptr()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn normals(&self) -> *const Vec3 {
+        self.normals.as_ptr()
     }
 
     #[wasm_bindgen(getter)]
@@ -391,6 +398,36 @@ impl ParallelClothSimulation {
                 }
             }
         }
+    }
+
+    pub fn update_normals(&mut self) {
+        self.normals.fill(Vec3::ZERO);
+
+        // add normals
+        let pos_cell = SyncUnsafeCell::new(&mut self.pos);
+        let normal_cell = SyncUnsafeCell::new(&mut self.normals);
+        (0..self.num_tris).into_par_iter().for_each(|i| {
+            let [id0, id1, id2] = self.tri_ids[i];
+            let p0: Vec3;
+            let p1: Vec3;
+            let p2: Vec3;
+            unsafe {
+                p0 = get_unsync(pos_cell.get(), id0);
+                p1 = get_unsync(pos_cell.get(), id1);
+                p2 = get_unsync(pos_cell.get(), id2);
+            }
+            let normal = (p1 - p0).cross(p2 - p0);
+            unsafe {
+                add_unsync(normal_cell.get(), id0, normal);
+                add_unsync(normal_cell.get(), id1, normal);
+                add_unsync(normal_cell.get(), id2, normal);
+            }
+        });
+
+        // normalize normals
+        self.normals.par_iter_mut().for_each(|n| {
+            *n = n.normalize();
+        });
     }
 
     pub fn start_grab(&mut self, _: usize, pos: &[f32]) {

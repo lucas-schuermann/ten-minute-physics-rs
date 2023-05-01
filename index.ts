@@ -15,6 +15,8 @@ import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth
 import { threads } from 'wasm-feature-detect';
 
 import('./pkg').then(async rust_wasm => {
+    const { memory } = await rust_wasm.default();
+
     const $ = (id: string) => document.getElementById(id);
 
     let demos: Record<string, { title: string, config: SceneConfig, demo: any }> = {
@@ -69,6 +71,8 @@ import('./pkg').then(async rust_wasm => {
             demo: PositionBasedFluidDemo,
         }
     };
+
+    let canvas = $('canvas') as HTMLCanvasElement;
     // check if required features are supported, else remove unsupported demos
     if (!(await threads()) || !HTMLCanvasElement.prototype.transferControlToOffscreen) {
         console.log("Required features not supported for 16-ParallelCloth. Disabling selection.");
@@ -76,7 +80,6 @@ import('./pkg').then(async rust_wasm => {
     }
 
     const demoNames = Object.keys(demos);
-    let canvas = $('canvas') as HTMLCanvasElement;
     let demo: Demo<any, any>;
     let scene: Scene;
 
@@ -116,6 +119,7 @@ import('./pkg').then(async rust_wasm => {
     window.addEventListener('resize', () => {
         if (scene.kind === "3D") {
             if (scene.offscreen) {
+                // for offscreen, the worker owns the scene and must handle the resize event
                 demo.resize(window.innerWidth / window.devicePixelRatio, window.innerHeight / window.devicePixelRatio);
             } else {
                 // for 3d, THREE.js can non-destructively update the renderer
@@ -152,12 +156,10 @@ import('./pkg').then(async rust_wasm => {
         if (demoFolder) demoFolder.destroy();
         demoFolder = gui.addFolder('Demo Settings');
         const config = demos[sid].config;
-        if (config.kind === "3D") {
-            if (config.offscreen === true) {
-                scene = { kind: "3D", offscreen: true };
-            } else {
-                scene = init3DScene(config);
-            }
+        if (config.kind === "3D" && config.offscreen === true) {
+            scene = { kind: "3D", offscreen: true };
+        } else if (config.kind === "3D") {
+            scene = init3DScene(config);
         } else {
             scene = init2DScene(config);
         }
@@ -167,14 +169,13 @@ import('./pkg').then(async rust_wasm => {
         if (demo?.free) {
             demo.free();
         }
-        demo = null; // LVSTODO: we're leaking memory (3MB) when moving between selections. think arraybuffer in demo?
-        if (!(config.kind === "3D" && config.offscreen)) {
-            demo = new demos[sid].demo(rust_wasm, canvas, scene, demoFolder);
-        } else {
+        if (config.kind === "3D" && config.offscreen) {
             replaceCanvas();
             canvas.width = window.innerWidth / window.devicePixelRatio;
             canvas.height = window.innerHeight / window.devicePixelRatio;
-            demo = new demos[sid].demo(rust_wasm, canvas.transferControlToOffscreen(), canvas, config, demoFolder, stats, simPanel);
+            demo = new demos[sid].demo(canvas.transferControlToOffscreen(), canvas, config, demoFolder, stats, simPanel);
+        } else {
+            demo = new demos[sid].demo(rust_wasm, memory, canvas, scene, demoFolder);
         }
         await demo.init();
     }

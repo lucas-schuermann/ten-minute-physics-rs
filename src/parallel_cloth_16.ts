@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as Comlink from 'comlink';
 import GUI, { Controller } from 'lil-gui';
 import { ParallelClothDemoWorker } from './parallel_cloth_16_worker';
-import { SolverKind } from '../pkg-parallel';
+import { SolverKind } from '../pkg';
 import { Demo, enumToValueList, Scene3D, Scene3DConfig } from './lib';
 import './parallel_cloth_16_transfer'; // must be included to extend Comlink transfer to events
 
@@ -28,7 +28,7 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
     private stats: Stats;
     private simPanel: Stats.Panel;
 
-    constructor(_rust_wasm: any, canvas: OffscreenCanvas, inputElement: HTMLElement, config: Scene3DConfig, folder: GUI, stats: Stats, simPanel: Stats.Panel) {
+    constructor(canvas: OffscreenCanvas, inputElement: HTMLElement, config: Scene3DConfig, folder: GUI, stats: Stats, simPanel: Stats.Panel) {
         this.canvas = canvas;
         this.inputElement = inputElement;
         this.config = config;
@@ -46,8 +46,13 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
         );
 
         // launch WASM web worker
-        this.sim = await new RemoteParallelClothDemoWorker(Comlink.transfer(this.canvas, [this.canvas]), this.config, Comlink.proxy(this.stats), Comlink.proxy(this.simPanel), window.devicePixelRatio);
-        await this.sim.init();
+        this.sim = await new RemoteParallelClothDemoWorker(Comlink.proxy(this.stats), Comlink.proxy(this.simPanel));
+
+        // size must be initialized before calling init() for proper render target/camera setup
+        const rect = this.inputElement.getBoundingClientRect();
+        this.sim.setSize(rect.left, rect.top, this.inputElement.clientWidth, this.inputElement.clientHeight);
+
+        await this.sim.init(Comlink.transfer(this.canvas, [this.canvas]), this.config, window.devicePixelRatio);
         const animateController = await this.initControls(this.folder);
 
         // used by OrbitControls
@@ -60,10 +65,6 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
         this.inputElement.addEventListener("mousedown", this.sim.handleEvent.bind(this.sim));
         this.inputElement.addEventListener("mousemove", this.sim.handleEvent.bind(this.sim));
         this.inputElement.addEventListener("mouseup", this.sim.handleEvent.bind(this.sim));
-
-        // LVSTODO: handle resizing
-        const rect = this.inputElement.getBoundingClientRect();
-        this.sim.setSize(rect.left, rect.top, this.inputElement.clientWidth, this.inputElement.clientHeight);
 
         // enter main loop on worker thread
         this.sim.beginLoop(Comlink.proxy(animateController));

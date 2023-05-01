@@ -5,23 +5,6 @@ const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 module.exports = (env, argv) => {
     console.log('Building in %s mode', argv.mode);
 
-    let wasmPackPlugin;
-    if (env.parallel === true) {
-        console.log('Building with WASM threading support');
-        wasmPackPlugin = new WasmPackPlugin({
-            // See https://github.com/GoogleChromeLabs/wasm-bindgen-rayon/#readme
-            // Other compilation flags provided in npm scripts, see `package.json`
-            extraArgs: "--target web -- . --features parallel -Z build-std=panic_abort,std",
-            crateDirectory: path.resolve(__dirname, "."),
-            outDir: path.resolve(__dirname, './pkg-parallel'),
-            outName: 'parallel'
-        });
-    } else {
-        wasmPackPlugin = new WasmPackPlugin({
-            crateDirectory: path.resolve(__dirname, ".")
-        });
-    }
-
     config = {
         entry: './index.ts',
         resolve: {
@@ -44,7 +27,13 @@ module.exports = (env, argv) => {
             new HtmlWebpackPlugin({
                 template: './index.html'
             }),
-            wasmPackPlugin
+            new WasmPackPlugin({
+                // See https://github.com/GoogleChromeLabs/wasm-bindgen-rayon/#readme
+                // Other compilation flags provided in npm scripts, see `package.json`
+                mode: "production",
+                extraArgs: `--target web -- . -Z build-std=panic_abort,std`,
+                crateDirectory: path.resolve(__dirname, "."),
+            })
         ],
         experiments: {
             asyncWebAssembly: true

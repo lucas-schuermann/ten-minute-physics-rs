@@ -32,12 +32,14 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     private rust_wasm: any;
     private mouseDown: boolean;
     private mouseOffset: THREE.Vector2;
+    private imageData: ImageData;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2DCanvas, folder: GUI) {
+    constructor(rust_wasm: any, _: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene2DCanvas, folder: GUI) {
         this.rust_wasm = rust_wasm;
         this.sim = new rust_wasm.FluidSimulation(DEFAULT_SCENE, scene.width, scene.height, scene.context);
         this.scene = scene;
         this.initControls(folder, canvas);
+        this.imageData = scene.context.createImageData(scene.width, scene.height);
     }
 
     init() {
@@ -71,7 +73,9 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     }
 
     draw() {
-        this.sim.draw();
+        this.sim.draw_buffer(this.imageData.data as unknown as Uint8Array); // wasm-bindgen doesn't support Uint8ClampedArray
+        this.scene.context.putImageData(this.imageData, 0, 0);
+        this.sim.draw_canvas();
     }
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
