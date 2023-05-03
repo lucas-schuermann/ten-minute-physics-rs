@@ -1,13 +1,13 @@
 /**
  * @license
- * Copyright 2010-2023 Three.js Authors
- * SPDX-License-Identifier: MIT
+ * Copyright 2019 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * lil-gui
  * https://lil-gui.georgealways.com
- * @version 0.18.0
+ * @version 0.18.1
  * @author George Michael Brower
  * @license MIT
  */
