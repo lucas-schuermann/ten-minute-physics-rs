@@ -32,7 +32,7 @@ class FlipDemo implements Demo<FlipSimulation, FlipDemoProps> {
     private mouseDown: boolean;
     private mouseOffset: THREE.Vector2;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene2DWebGL, folder: GUI) {
+    constructor(rust_wasm: any, _: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene2DWebGL, folder: GUI) {
         this.rust_wasm = rust_wasm;
         this.sim = new rust_wasm.FlipSimulation(scene.width, scene.height, scene.context);
         this.scene = scene;

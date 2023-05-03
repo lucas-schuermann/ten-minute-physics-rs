@@ -13,7 +13,10 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.4.0
       - uses: actions-rs/toolchain@v1
         with:
+          target: wasm32-unknown-unknown
           profile: minimal
+          components: rust-src
+      - run: sudo apt install -y binaryen
       - name: Build
         run: |
           npm install
@@ -21,5 +24,7 @@ jobs:
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4.4.1
         with:
-          branch: gh-pages # The branch the action should deploy to
+          branch: deploy # The branch the action should deploy to
           folder: dist # The folder the action should deploy
+          clean-exclude: |
+            netlify.toml

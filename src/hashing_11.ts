@@ -2,7 +2,6 @@ import GUI from 'lil-gui';
 import * as THREE from 'three';
 
 import { HashSimulation } from '../pkg';
-import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene3D, Scene3DConfig } from './lib';
 
 type HashDemoProps = {
@@ -25,13 +24,15 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
     scene: Scene3D;
     props: HashDemoProps;
 
+    private memory: WebAssembly.Memory;
     private mesh: THREE.InstancedMesh;
     private translationMatrix: THREE.Matrix4;
     private colors: Float32Array;
     private positions: Float32Array; // mapped to WASM memory
     private collisions: Uint8Array; // mapped to WASM memory
 
-    constructor(rust_wasm: any, _: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+    constructor(rust_wasm: any, memory: WebAssembly.Memory, _: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.memory = memory;
         this.sim = new rust_wasm.HashSimulation();
         this.scene = scene;
         this.initControls(folder);
@@ -72,15 +73,16 @@ class HashDemo implements Demo<HashSimulation, HashDemoProps> {
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.colors = new Float32Array(3 * this.sim.num_bodies);
         this.mesh.instanceColor = new THREE.InstancedBufferAttribute(this.colors, 3, false, 1);
+        this.mesh.castShadow = true;
         this.scene.scene.add(this.mesh);
 
         // Here, we store the pointer to the positions buffer location after the simulation is
         // initialized (all allocations are completed). In the WASM linear heap, it will be constant 
         // thereafter, so we don't need to refresh the pointer moving forward.
         const positionsPtr = this.sim.pos;
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_bodies * 3);
+        this.positions = new Float32Array(this.memory.buffer, positionsPtr, this.sim.num_bodies * 3);
         const collisionsPtr = this.sim.collisions;
-        this.collisions = new Uint8Array(memory.buffer, collisionsPtr, this.sim.num_bodies);
+        this.collisions = new Uint8Array(this.memory.buffer, collisionsPtr, this.sim.num_bodies);
 
         this.updateMesh();
     }

@@ -4,6 +4,7 @@ const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
 module.exports = (_, argv) => {
     console.log('Building in %s mode', argv.mode);
+
     config = {
         entry: './index.ts',
         resolve: {
@@ -27,7 +28,11 @@ module.exports = (_, argv) => {
                 template: './index.html'
             }),
             new WasmPackPlugin({
-                crateDirectory: path.resolve(__dirname, "./")
+                // See https://github.com/GoogleChromeLabs/wasm-bindgen-rayon/#readme
+                // Other compilation flags provided in npm scripts, see `package.json`
+                mode: "production",
+                extraArgs: `--target web -- . -Z build-std=panic_abort,std`,
+                crateDirectory: path.resolve(__dirname, "."),
             })
         ],
         experiments: {
@@ -36,6 +41,14 @@ module.exports = (_, argv) => {
         performance: {
             // disable hints banner since WASM modules will be large in size
             hints: false
+        },
+        devServer: {
+            // Required in order to use SharedArrayBuffer
+            // See https://web.dev/coop-coep/
+            headers: {
+                'Cross-Origin-Embedder-Policy': 'require-corp',
+                'Cross-Origin-Opener-Policy': 'same-origin',
+            }
         }
     };
     return config;

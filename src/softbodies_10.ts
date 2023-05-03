@@ -2,7 +2,6 @@ import GUI, { Controller } from 'lil-gui';
 import * as THREE from 'three';
 
 import { SoftBodiesSimulation } from '../pkg';
-import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
@@ -30,11 +29,13 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     scene: Scene3D;
     props: SoftBodiesDemoProps;
 
+    private memory: WebAssembly.Memory;
     private tetsController: Controller;
     private grabber: Grabber;
     private surfaceMeshes: THREE.Mesh[];
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+    constructor(rust_wasm: any, memory: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.memory = memory;
         this.sim = new rust_wasm.SoftBodiesSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
         this.scene = scene;
         this.surfaceMeshes = [];
@@ -102,7 +103,7 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
         // step in `updateMesh` to point to the refeteched `particle_positions_ptr(id)`. There are probably
         // more efficient ways to do this, but a simple implementation works for this demo.
         const positionsPtr = this.sim.pos(id);
-        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
+        const positions = new Float32Array(this.memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
 
         // visual tri mesh
         const geometry = new THREE.BufferGeometry();
@@ -128,10 +129,10 @@ class SoftBodiesDemo implements Demo<SoftBodiesSimulation, SoftBodiesDemoProps> 
     private updateMesh(id: number) {
         // mapped to WASM memory, see comment in `initMesh`
         const positionsPtr = this.sim.pos(id);
-        const positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
+        const positions = new Float32Array(this.memory.buffer, positionsPtr, this.sim.num_particles_per_body * 3);
         this.surfaceMeshes[id].geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        this.surfaceMeshes[id].geometry.computeVertexNormals();
         this.surfaceMeshes[id].geometry.attributes.position.needsUpdate = true;
+        this.surfaceMeshes[id].geometry.computeVertexNormals();
         this.surfaceMeshes[id].geometry.computeBoundingSphere();
     }
 

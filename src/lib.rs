@@ -1,3 +1,4 @@
+#![feature(sync_unsafe_cell)]
 #![allow(
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
@@ -11,6 +12,7 @@ mod fluid_2d_challenge;
 mod fluid_sim_17;
 mod hashing_11;
 mod mesh;
+mod parallel_cloth_16;
 mod self_collision_15;
 mod softbodies_10;
 mod softbody_skinning_12;

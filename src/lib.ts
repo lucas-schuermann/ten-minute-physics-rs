@@ -11,6 +11,8 @@ type Demo<S, T> = {
     update(): void;
     reset(): void;
     draw?(): void;
+    resize?(width: number, height: number): void;
+    free?(): void;
 }
 
 type Scene = Scene2DCanvas | Scene2DWebGL | Scene3D;
@@ -31,10 +33,11 @@ type Scene2DWebGL = {
 
 type Scene3D = {
     kind: "3D";
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    renderer: THREE.WebGLRenderer;
-    controls: OrbitControls;
+    scene?: THREE.Scene;
+    camera?: THREE.PerspectiveCamera;
+    renderer?: THREE.WebGLRenderer;
+    controls?: OrbitControls;
+    offscreen: boolean;
 }
 
 type SceneConfig = Scene2DConfig | Scene3DConfig;
@@ -47,6 +50,7 @@ type Scene3DConfig = {
     kind: "3D";
     cameraYZ: [number, number];
     cameraLookAt: THREE.Vector3;
+    offscreen?: boolean;
 };
 
 type GrabberInterface = {
@@ -69,13 +73,14 @@ class Grabber {
     private mouseDown: boolean;
     private intersectedObjectId: null | number;
 
+    private inputElement: HTMLElement;
     private raycaster: THREE.Raycaster;
     private distance: number;
     private prevPos: THREE.Vector3;
     private vel: THREE.Vector3;
     private time: number;
 
-    constructor(sim: GrabberInterface, canvas: HTMLCanvasElement, scene: Scene3D, props: GrabberProps, animateController: Controller) {
+    constructor(sim: GrabberInterface, inputElement: HTMLElement, scene: Scene3D, props: GrabberProps, animateController: Controller) {
         this.sim = sim;
         this.scene = scene;
         this.props = props;
@@ -121,18 +126,19 @@ class Grabber {
                 }
             }
         }
-        canvas.addEventListener('mousedown', onInput, false);
-        canvas.addEventListener('touchstart', onInput, false);
-        canvas.addEventListener('mouseup', onInput, false);
-        canvas.addEventListener('touchend', onInput, false);
-        canvas.addEventListener('mousemove', onInput, false);
-        canvas.addEventListener('touchmove', onInput, false);
+        inputElement.addEventListener('mousedown', onInput, false);
+        inputElement.addEventListener('touchstart', onInput, false);
+        inputElement.addEventListener('mouseup', onInput, false);
+        inputElement.addEventListener('touchend', onInput, false);
+        inputElement.addEventListener('mousemove', onInput, false);
+        inputElement.addEventListener('touchmove', onInput, false);
+        this.inputElement = inputElement;
     }
     increaseTime(dt: number) {
         this.time += dt;
     }
     updateRaycaster(x: number, y: number) {
-        const rect = this.scene.renderer.domElement.getBoundingClientRect();
+        const rect = this.inputElement.getBoundingClientRect();
         this.mousePos.x = ((x - rect.left) / rect.width) * 2 - 1;
         this.mousePos.y = -((y - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mousePos, this.scene.camera);
@@ -185,7 +191,81 @@ class Grabber {
     }
 }
 
+const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElement: HTMLElement, config: Scene3DConfig, width: number, height: number, devicePixelRatio: number): Scene3D => {
+    const scene = new THREE.Scene();
+
+    // lights
+    scene.add(new THREE.AmbientLight(0x505050));
+    scene.fog = new THREE.Fog(0x000000, 0, 15);
+
+    const spotLight = new THREE.SpotLight(0xffffff);
+    spotLight.angle = Math.PI / 5;
+    spotLight.penumbra = 0.2;
+    spotLight.position.set(2, 3, 3);
+    spotLight.castShadow = true;
+    spotLight.shadow.camera.near = 1;
+    spotLight.shadow.camera.far = 10;
+    spotLight.shadow.mapSize.width = 2056;
+    spotLight.shadow.mapSize.height = 2056;
+    scene.add(spotLight);
+
+    const dirLight = new THREE.DirectionalLight(0x55505a, 1);
+    dirLight.position.set(0, 3, 0);
+    dirLight.castShadow = true;
+    dirLight.shadow.camera.near = 0.1;
+    dirLight.shadow.camera.far = 10;
+    dirLight.shadow.camera.right = 4;
+    dirLight.shadow.camera.left = -4;
+    dirLight.shadow.camera.top = 4;
+    dirLight.shadow.camera.bottom = -4;
+    dirLight.shadow.mapSize.width = 2056;
+    dirLight.shadow.mapSize.height = 2056;
+    scene.add(dirLight);
+
+    // geometry
+    const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(20, 20, 1, 1),
+        new THREE.MeshPhongMaterial({ color: 0xa0adaf, shininess: 150 })
+    );
+    ground.rotation.x = - Math.PI / 2; // rotates X/Y to X/Z
+    ground.receiveShadow = true;
+    scene.add(ground);
+    const helper = new THREE.GridHelper(20, 20);
+    const material = helper.material as THREE.Material;
+    material.opacity = 1.0;
+    material.transparent = true;
+    helper.position.set(0, 0.002, 0);
+    scene.add(helper);
+
+    // renderer
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(width, height, !config.offscreen);
+
+    // camera
+    const camera = new THREE.PerspectiveCamera(70, width / height, 0.01, 100);
+    camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
+    camera.updateMatrixWorld();
+    scene.add(camera);
+
+    const controls = new OrbitControls(camera, inputElement as HTMLCanvasElement);
+    controls.zoomSpeed = 2.0;
+    controls.panSpeed = 0.4;
+    controls.target.copy(config.cameraLookAt);
+    controls.update();
+
+    return { kind: '3D', scene, camera, renderer, controls, offscreen: config.offscreen };
+};
+
+const resizeThreeScene = (scene: Scene3D, width: number, height: number, updateStyle: boolean) => {
+    scene.camera.aspect = width / height;
+    scene.camera.updateProjectionMatrix();
+    scene.renderer.setSize(width, height, updateStyle);
+}
+
+
 // returns ['EnumOne', 'EnumTwo', ...]
 const enumToValueList = (e: any): any => Object.values(e).filter((i) => typeof i === 'string');
 
-export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, enumToValueList };
+export { Demo, Scene, Scene2DCanvas, Scene2DWebGL, Scene3D, SceneConfig, Scene2DConfig, Scene3DConfig, Grabber, initThreeScene, resizeThreeScene, enumToValueList };

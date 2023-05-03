@@ -2,7 +2,6 @@ import GUI, { Controller } from 'lil-gui';
 import * as THREE from 'three';
 
 import { SkinnedSoftbodySimulation } from '../pkg';
-import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
@@ -32,13 +31,15 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     scene: Scene3D;
     props: SkinnedSoftbodyDemoProps;
 
+    private memory: WebAssembly.Memory;
     private grabber: Grabber;
     private tetMesh: THREE.LineSegments;
     private surfaceMesh: THREE.Mesh;
     private tetPositions: Float32Array; // mapped to WASM memory
     private surfacePositions: Float32Array; // mapped to WASM memory
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+    constructor(rust_wasm: any, memory: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.memory = memory;
         this.sim = new rust_wasm.SkinnedSoftbodySimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_EDGE_COMPLIANCE, DEFAULT_VOL_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -106,9 +107,9 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
         // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
         // moving forward.
         const tetPositionsPtr = this.sim.pos;
-        this.tetPositions = new Float32Array(memory.buffer, tetPositionsPtr, this.sim.num_particles * 3);
+        this.tetPositions = new Float32Array(this.memory.buffer, tetPositionsPtr, this.sim.num_particles * 3);
         const surfacePositionsPtr = this.sim.surface_pos;
-        this.surfacePositions = new Float32Array(memory.buffer, surfacePositionsPtr, this.sim.num_surface_verts * 3);
+        this.surfacePositions = new Float32Array(this.memory.buffer, surfacePositionsPtr, this.sim.num_surface_verts * 3);
 
         // visual tet mesh
         let geometry = new THREE.BufferGeometry();
@@ -135,9 +136,9 @@ class SkinnedSoftbodyDemo implements Demo<SkinnedSoftbodySimulation, SkinnedSoft
     }
 
     private updateMesh() {
+        this.surfaceMesh.geometry.attributes.position.needsUpdate = true;
         this.tetMesh.geometry.attributes.position.needsUpdate = true;
         this.surfaceMesh.geometry.computeVertexNormals();
-        this.surfaceMesh.geometry.attributes.position.needsUpdate = true;
         this.surfaceMesh.geometry.computeBoundingSphere();
     }
 }

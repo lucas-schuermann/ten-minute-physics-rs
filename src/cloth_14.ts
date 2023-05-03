@@ -2,7 +2,6 @@ import GUI from 'lil-gui';
 import * as THREE from 'three';
 
 import { ClothSimulation } from '../pkg';
-import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 15;
@@ -30,12 +29,14 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     scene: Scene3D;
     props: ClothDemoProps;
 
+    private memory: WebAssembly.Memory;
     private grabber: Grabber;
     private edgeMesh: THREE.LineSegments;
     private triMesh: THREE.Mesh;
     private positions: Float32Array; // mapped to WASM memory
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+    constructor(rust_wasm: any, memory: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.memory = memory;
         this.sim = new rust_wasm.ClothSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCHING_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -94,7 +95,7 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
         // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
         // moving forward.
         const positionsPtr = this.sim.pos;
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
+        this.positions = new Float32Array(this.memory.buffer, positionsPtr, this.sim.num_particles * 3);
 
         // edge mesh
         let geometry = new THREE.BufferGeometry();
@@ -121,10 +122,12 @@ class ClothDemo implements Demo<ClothSimulation, ClothDemoProps> {
     }
 
     private updateMesh() {
-        this.triMesh.geometry.computeVertexNormals();
         this.triMesh.geometry.attributes.position.needsUpdate = true;
-        this.triMesh.geometry.computeBoundingSphere();
         this.edgeMesh.geometry.attributes.position.needsUpdate = true;
+        if (!this.props.showEdges) {
+            this.triMesh.geometry.computeVertexNormals();
+        }
+        this.triMesh.geometry.computeBoundingSphere();
     }
 }
 

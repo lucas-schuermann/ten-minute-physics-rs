@@ -2,7 +2,6 @@ import GUI from 'lil-gui';
 import * as THREE from 'three';
 
 import { SelfCollisionSimulation } from '../pkg';
-import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene3D, Scene3DConfig, Grabber, enumToValueList } from './lib';
 
 const DEFAULT_NUM_SOLVER_SUBSTEPS = 10;
@@ -42,13 +41,15 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
     scene: Scene3D;
     props: SelfCollisionDemoProps;
 
+    private memory: WebAssembly.Memory;
     private grabber: Grabber;
     private edgeMesh: THREE.LineSegments;
     private frontMesh: THREE.Mesh;
     private backMesh: THREE.Mesh;
     private positions: Float32Array; // mapped to WASM memory
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+    constructor(rust_wasm: any, memory: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.memory = memory;
         this.sim = new rust_wasm.SelfCollisionSimulation(DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_BENDING_COMPLIANCE, DEFAULT_STRETCH_COMPLIANCE, DEFAULT_SHEAR_COMPLIANCE, DEFAULT_FRICTION);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -119,7 +120,7 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
         // linear heap, it will be constant thereafter, so we don't need to refresh the pointer
         // moving forward.
         const positionsPtr = this.sim.pos;
-        this.positions = new Float32Array(memory.buffer, positionsPtr, this.sim.num_particles * 3);
+        this.positions = new Float32Array(this.memory.buffer, positionsPtr, this.sim.num_particles * 3);
 
         // visual edge mesh
         let geometry = new THREE.BufferGeometry();
@@ -151,10 +152,12 @@ class SelfCollisionDemo implements Demo<SelfCollisionSimulation, SelfCollisionDe
     }
 
     private updateMesh() {
-        this.frontMesh.geometry.computeVertexNormals();
         this.frontMesh.geometry.attributes.position.needsUpdate = true;
-        this.frontMesh.geometry.computeBoundingSphere();
         this.edgeMesh.geometry.attributes.position.needsUpdate = true;
+        if (!this.props.showEdges) {
+            this.frontMesh.geometry.computeVertexNormals();
+        }
+        this.frontMesh.geometry.computeBoundingSphere();
     }
 }
 

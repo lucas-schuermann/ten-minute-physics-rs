@@ -31,7 +31,7 @@ class PositionBasedFluidDemo implements Demo<PositionBasedFluidSimulation, Posit
     lastDamSize: [number, number];
     particlesController: Controller;
 
-    constructor(rust_wasm: any, _: HTMLCanvasElement, scene: Scene2DWebGL, folder: GUI) {
+    constructor(rust_wasm: any, _memory: WebAssembly.Memory, _canvas: HTMLCanvasElement, scene: Scene2DWebGL, folder: GUI) {
         const useDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
         this.lastDamSize = DEFAULT_DAM_SIZE;
         this.sim = new rust_wasm.PositionBasedFluidSimulation(scene.context, scene.width, scene.height, useDarkMode, ...this.lastDamSize);

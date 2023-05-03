@@ -2,7 +2,6 @@ import GUI, { Controller } from 'lil-gui';
 import * as THREE from 'three';
 
 import { BodyChainSimulation } from '../pkg';
-import { memory } from '../pkg/index_bg.wasm';
 import { Demo, Scene3D, Scene3DConfig, Grabber } from './lib';
 
 const DEFAULT_NUM_OBJECTS = 100;
@@ -33,11 +32,13 @@ class BodyChainDemo implements Demo<BodyChainSimulation, BodyChainDemoProps> {
     scene: Scene3D;
     props: BodyChainDemoProps;
 
+    private memory: WebAssembly.Memory;
     private grabber: Grabber;
     private boxMeshes: THREE.Mesh[];
     private boxPoses: Float32Array;
 
-    constructor(rust_wasm: any, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+    constructor(rust_wasm: any, memory: WebAssembly.Memory, canvas: HTMLCanvasElement, scene: Scene3D, folder: GUI) {
+        this.memory = memory;
         this.sim = new rust_wasm.BodyChainSimulation(DEFAULT_NUM_OBJECTS, DEFAULT_OBJECT_SIZE.toArray(), DEFAULT_LAST_OBJECT_SIZE.toArray(), DEFAULT_NUM_SOLVER_SUBSTEPS, DEFAULT_ROT_DAMPING, DEFAULT_POS_DAMPING, DEFAULT_COMPLIANCE);
         this.scene = scene;
         this.initControls(folder, canvas);
@@ -104,7 +105,7 @@ class BodyChainDemo implements Demo<BodyChainSimulation, BodyChainDemoProps> {
         // initialized (all allocations are completed). In the WASM linear heap, it will be constant 
         // thereafter, so we don't need to refresh the pointer moving forward.
         const posesPtr = this.sim.poses;
-        this.boxPoses = new Float32Array(memory.buffer, posesPtr, this.sim.num_objects * 7);
+        this.boxPoses = new Float32Array(this.memory.buffer, posesPtr, this.sim.num_objects * 7);
     }
 
     private updateMeshes() {
