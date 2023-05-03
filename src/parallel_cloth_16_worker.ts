@@ -110,9 +110,11 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
         this.simPanel = simPanel;
     }
 
-    async init(canvas: OffscreenCanvas, config: Scene3DConfig, devicePixelRatio: number) {
+    async init(canvas: OffscreenCanvas, config: Scene3DConfig, rect: DOMRect, width: number, height: number, devicePixelRatio: number) {
+        this.setSize(rect.left, rect.top, width, height);
+
         // for `this` cast, see comment on ProxiedHTMLElement
-        this.scene = initThreeScene(canvas, this as unknown as HTMLElement, config, devicePixelRatio);
+        this.scene = initThreeScene(canvas, this as unknown as HTMLElement, config, width / devicePixelRatio, height / devicePixelRatio, devicePixelRatio);
 
         const rust_wasm = await import('../pkg');
 

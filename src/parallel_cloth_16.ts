@@ -48,11 +48,9 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
         // launch WASM web worker
         this.sim = await new RemoteParallelClothDemoWorker(Comlink.proxy(this.stats), Comlink.proxy(this.simPanel));
 
-        // size must be initialized before calling init() for proper render target/camera setup
+        // size must be initialized for init() for proper render target/camera setup
         const rect = this.inputElement.getBoundingClientRect();
-        this.sim.setSize(rect.left, rect.top, this.inputElement.clientWidth, this.inputElement.clientHeight);
-
-        await this.sim.init(Comlink.transfer(this.canvas, [this.canvas]), this.config, window.devicePixelRatio);
+        await this.sim.init(Comlink.transfer(this.canvas, [this.canvas]), this.config, rect, window.innerWidth, window.innerHeight, window.devicePixelRatio);
         const animateController = await this.initControls(this.folder);
 
         // used by OrbitControls
@@ -67,7 +65,7 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
         this.inputElement.addEventListener("mouseup", this.sim.handleEvent.bind(this.sim));
 
         // enter main loop on worker thread
-        this.sim.beginLoop(Comlink.proxy(animateController));
+        await this.sim.beginLoop(Comlink.proxy(animateController));
     }
 
     private async initControls(folder: GUI): Promise<Controller> {
@@ -97,7 +95,7 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
 
     async resize(width: number, height: number) {
         const rect = this.inputElement.getBoundingClientRect();
-        this.sim.setSize(rect.left, rect.top, this.inputElement.clientWidth, this.inputElement.clientHeight);
+        await this.sim.setSize(rect.left, rect.top, this.inputElement.clientWidth, this.inputElement.clientHeight);
         await this.sim.resize(width, height);
     }
 }

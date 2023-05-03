@@ -80,8 +80,8 @@ pub struct ParallelClothSimulation {
     grab_id: Option<usize>,
 }
 
-// mark as unsafe, as it's possible to provide parameters that cause
-// undefined behavior
+// Mark as unsafe, as it's possible to provide parameters that cause
+// undefined behavior. See `solve_distance_constraints` for usage notes.
 unsafe fn add_unsync(vec_ptr: *mut &mut Vec<Vec3>, idx: usize, rhs: Vec3) {
     let vec = vec_ptr.read();
     let first_elem = vec.as_mut_ptr();
@@ -348,7 +348,13 @@ impl ParallelClothSimulation {
             let l = d.length();
             let l0 = self.rest_lengths[cid];
             let dp = n * (l - l0) / w;
-            // LVSTODO: comment on limitations
+
+            // NOTE: here and below use of add_unsync in `update_normals` are a very simple
+            // hack to allow possible simultaneous writes from multiple parallel iterator
+            // threads. Using a RWLock, for example, would lead to an untenable performance
+            // penalty. This kind of approach works since in the case of simultaneous writes,
+            // only a single addition is lost (a small error is propagated). This kind of
+            // approach should never be used in production-critical code.
             if solver_kind == SolverKind::JACOBI {
                 unsafe {
                     add_unsync(corr_cell.get(), id0, w0 * dp);
@@ -373,7 +379,7 @@ impl ParallelClothSimulation {
     }
 
     pub fn step(&mut self) {
-        let passes = self.passes.clone(); // LVSTODO: can we get around clone?
+        let passes = self.passes.clone();
         for _ in 0..self.num_substeps {
             self.integrate();
             match self.solver_kind {

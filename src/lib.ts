@@ -191,7 +191,7 @@ class Grabber {
     }
 }
 
-const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElement: HTMLElement, config: Scene3DConfig, devicePixelRatio: number): Scene3D => {
+const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElement: HTMLElement, config: Scene3DConfig, width: number, height: number, devicePixelRatio: number): Scene3D => {
     const scene = new THREE.Scene();
 
     // lights
@@ -241,15 +241,10 @@ const initThreeScene = (canvas: HTMLCanvasElement | OffscreenCanvas, inputElemen
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
     renderer.shadowMap.enabled = true;
     renderer.setPixelRatio(devicePixelRatio);
-
-    if (config.offscreen) {
-        renderer.setSize(inputElement.clientWidth, inputElement.clientHeight, false);
-    } else {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+    renderer.setSize(width, height, !config.offscreen);
 
     // camera
-    const camera = new THREE.PerspectiveCamera(70, inputElement.clientWidth / inputElement.clientHeight, 0.01, 100);
+    const camera = new THREE.PerspectiveCamera(70, width / height, 0.01, 100);
     camera.position.set(0, config.cameraYZ[0], config.cameraYZ[1]);
     camera.updateMatrixWorld();
     scene.add(camera);

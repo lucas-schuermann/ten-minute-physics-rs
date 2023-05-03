@@ -1,5 +1,6 @@
 import GUI from 'lil-gui';
 import * as Stats from 'stats.js';
+import { threads } from 'wasm-feature-detect';
 
 import { SelfCollisionDemo, SelfCollisionDemoConfig } from './src/self_collision_15';
 import { ClothDemo, ClothDemoConfig } from './src/cloth_14';
@@ -73,7 +74,7 @@ import('./pkg').then(async rust_wasm => {
 
     let canvas = $('canvas') as HTMLCanvasElement;
     // check if required features are supported, else remove unsupported demos
-    if (!Boolean((window as any).chrome)) {
+    if (!Boolean((window as any).chrome) || !(await threads()) || !HTMLCanvasElement.prototype.transferControlToOffscreen) {
         console.log("Required features not supported for 16-ParallelCloth. Disabling selection.");
         delete demos['16-ParallelCloth'];
     }
@@ -111,7 +112,7 @@ import('./pkg').then(async rust_wasm => {
 
     const init3DScene = (config: Scene3DConfig): Scene3D => {
         replaceCanvas();
-        return initThreeScene(canvas, canvas, config, window.devicePixelRatio);
+        return initThreeScene(canvas, canvas, config, window.innerWidth, window.innerHeight, window.devicePixelRatio);
     };
 
     let resizeTimer: NodeJS.Timeout; // limit 2d resize events to once per 250ms
@@ -172,6 +173,7 @@ import('./pkg').then(async rust_wasm => {
             replaceCanvas();
             canvas.width = window.innerWidth / window.devicePixelRatio;
             canvas.height = window.innerHeight / window.devicePixelRatio;
+
             demo = new demos[sid].demo(canvas.transferControlToOffscreen(), canvas, config, demoFolder, stats, simPanel);
         } else {
             demo = new demos[sid].demo(rust_wasm, memory, canvas, scene, demoFolder);
