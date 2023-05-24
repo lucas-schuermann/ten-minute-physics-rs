@@ -13,6 +13,7 @@ import { FlipDemo, FlipDemoConfig } from './src/flip_18';
 import { BodyChainDemo, BodyChainDemoConfig } from './src/body_chain_challenge';
 import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/fluid_2d_challenge';
 import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth_16';
+import { FractalsDemo, FractalsDemoConfig } from './src/fractals_19';
 
 import('./pkg').then(async rust_wasm => {
     const { memory } = await rust_wasm.default();
@@ -20,6 +21,16 @@ import('./pkg').then(async rust_wasm => {
     const $ = (id: string) => document.getElementById(id);
 
     let demos: Record<string, { title: string, config: SceneConfig, demo: any }> = {
+        'Chall-Body-Chain': {
+            title: 'Chain of 100 Bodies',
+            config: BodyChainDemoConfig,
+            demo: BodyChainDemo,
+        },
+        'Chall-2D-Fluid': {
+            title: '2D Particle Fluid',
+            config: PositionBasedFluidDemoConfig,
+            demo: PositionBasedFluidDemo,
+        },
         '10-SoftBodies': {
             title: 'Soft Body Simulation',
             config: SoftBodiesDemoConfig,
@@ -60,15 +71,10 @@ import('./pkg').then(async rust_wasm => {
             config: FlipDemoConfig,
             demo: FlipDemo,
         },
-        'Chall-Body-Chain': {
-            title: 'Chain of 100 Bodies',
-            config: BodyChainDemoConfig,
-            demo: BodyChainDemo,
-        },
-        'Chall-2D-Fluid': {
-            title: '2D Particle Fluid',
-            config: PositionBasedFluidDemoConfig,
-            demo: PositionBasedFluidDemo,
+        '19-Fractals': {
+            title: 'Fractals',
+            config: FractalsDemoConfig,
+            demo: FractalsDemo,
         }
     };
 
@@ -144,7 +150,7 @@ import('./pkg').then(async rust_wasm => {
 
     // populate controls window
     const props = {
-        demoSelection: demoNames.at(-1), // default to latest demo
+        demoSelection: demoNames[Math.floor(Math.random() * demoNames.length)], // default to a random demo
         reset: () => demo.reset(),
     }
     const gui = new GUI({ autoPlace: false });

@@ -14,8 +14,8 @@
         // linter Checks
         "noImplicitReturns": true,
         "noUncheckedIndexedAccess": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true
+        // "noUnusedLocals": true,
+        // "noUnusedParameters": true
     },
     "include": [
         "./**/*.ts"

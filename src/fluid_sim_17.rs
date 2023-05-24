@@ -23,7 +23,7 @@ const RENDER_LINE_SCALE: f32 = 0.02;
 const STREAMLINE_RESOLUTION_STEP: usize = 5;
 const STREAMLINE_NUM_SEGS: usize = 15;
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_name = FluidSceneType)]
 #[derive(PartialEq, Clone, Copy)]
 pub enum SceneType {
     WindTunnel,

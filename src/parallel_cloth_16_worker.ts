@@ -1,6 +1,6 @@
 import * as Comlink from 'comlink';
 import * as Stats from 'stats.js';
-import { ParallelClothSimulation, SolverKind } from '../pkg';
+import { ParallelClothSimulation, ParallelClothSolverKind } from '../pkg';
 import { Grabber, resizeThreeScene, Scene3D, Scene3DConfig } from './lib';
 import { initThreeScene } from './lib';
 import * as THREE from 'three';
@@ -133,7 +133,7 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
             constraints: this.sim.num_dist_constraints,
             animate: true,
             showVertices: false,
-            solver: SolverKind[this.sim.solver_kind],
+            solver: ParallelClothSolverKind[this.sim.solver_kind],
             substeps: this.sim.num_substeps,
         };
 
@@ -181,7 +181,7 @@ export class ParallelClothDemoWorker extends ProxiedHTMLElement {
         this.props.animate = b;
     }
     setSolver(s: string) {
-        this.sim.solver_kind = Object.values(SolverKind).indexOf(s);
+        this.sim.solver_kind = Object.values(ParallelClothSolverKind).indexOf(s);
     }
 
     resize(width: number, height: number) {
