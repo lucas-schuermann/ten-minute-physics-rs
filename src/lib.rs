@@ -10,6 +10,7 @@ mod cloth_14;
 mod flip_18;
 mod fluid_2d_challenge;
 mod fluid_sim_17;
+mod fractals_19;
 mod hashing_11;
 mod mesh;
 mod parallel_cloth_16;

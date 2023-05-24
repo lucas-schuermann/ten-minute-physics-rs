@@ -36,7 +36,7 @@ impl SolverPass {
     }
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_name = ParallelClothSolverKind)]
 #[derive(PartialEq, Copy, Clone)]
 pub enum SolverKind {
     COLORING,

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as Comlink from 'comlink';
 import GUI, { Controller } from 'lil-gui';
 import { ParallelClothDemoWorker } from './parallel_cloth_16_worker';
-import { SolverKind } from '../pkg';
+import { ParallelClothSolverKind } from '../pkg';
 import { Demo, enumToValueList, Scene3D, Scene3DConfig } from './lib';
 import './parallel_cloth_16_transfer'; // must be included to extend Comlink transfer to events
 
@@ -76,7 +76,7 @@ class ParallelClothDemo implements Demo<any, ParallelClothDemoProps> {
         folder.add(props, 'triangles').disable();
         folder.add(props, 'vertices').disable();
         folder.add(props, 'constraints').disable();
-        folder.add(props, 'solver', enumToValueList(SolverKind)).name('solver').onChange((s: string) => { this.sim.setSolver(s) });
+        folder.add(props, 'solver', enumToValueList(ParallelClothSolverKind)).name('solver').onChange((s: string) => { this.sim.setSolver(s) });
         folder.add(props, 'substeps').min(20).max(40).step(1).onChange((v: number) => { this.sim.setSubsteps(v) });
         folder.add(props, 'showVertices').name('show vertices').onChange((s: boolean) => { this.sim.showVertices(s) });
         return folder.add(props, 'animate').onChange((a: boolean) => { this.sim.setAnimate(a) });

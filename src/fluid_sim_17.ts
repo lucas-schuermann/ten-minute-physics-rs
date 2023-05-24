@@ -1,10 +1,10 @@
 import GUI from 'lil-gui';
 import * as THREE from 'three';
 
-import { FluidSimulation, SceneType } from '../pkg';
+import { FluidSimulation, FluidSceneType } from '../pkg';
 import { Demo, Scene2DCanvas, Scene2DConfig, enumToValueList } from './lib';
 
-const DEFAULT_SCENE = SceneType.WindTunnel;
+const DEFAULT_SCENE = FluidSceneType.WindTunnel;
 
 type FluidDemoProps = {
     scene: string; // enum string value
@@ -52,7 +52,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
         this.props.showVelocities = this.sim.show_velocities;
         this.props.showPressure = this.sim.show_pressure;
         this.props.showSmoke = this.sim.show_smoke;
-        if (this.props.scene === SceneType[SceneType.WindTunnel] && this.props.showSmoke === true && this.props.showPressure === false) {
+        if (this.props.scene === FluidSceneType[FluidSceneType.WindTunnel] && this.props.showSmoke === true && this.props.showPressure === false) {
             // flip text color due to white background
             document.getElementById('info').setAttribute("style", "color: #000;");
         } else {
@@ -68,7 +68,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
 
     reset() {
         this.sim.free();
-        this.sim = new this.rust_wasm.FluidSimulation(Object.values(SceneType).indexOf(this.props.scene), this.scene.width, this.scene.height, this.scene.context);
+        this.sim = new this.rust_wasm.FluidSimulation(Object.values(FluidSceneType).indexOf(this.props.scene), this.scene.width, this.scene.height, this.scene.context);
         this.init();
     }
 
@@ -80,7 +80,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
 
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
-            scene: SceneType[DEFAULT_SCENE],
+            scene: FluidSceneType[DEFAULT_SCENE],
             animate: true,
             numCells: this.sim.num_cells,
             numIters: this.sim.num_iters,
@@ -92,7 +92,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
             showPressure: this.sim.show_pressure,
             showSmoke: this.sim.show_smoke,
         };
-        folder.add(this.props, 'scene', enumToValueList(SceneType)).onChange((_: string) => {
+        folder.add(this.props, 'scene', enumToValueList(FluidSceneType)).onChange((_: string) => {
             this.reset();
         });
         folder.add(this.props, 'numCells').name('cells').disable().listen();
@@ -126,7 +126,7 @@ class FluidDemo implements Demo<FluidSimulation, FluidDemoProps> {
     private setMousePos(x: number, y: number, reset: boolean) {
         const mx = x - this.mouseOffset.x;
         const my = y - this.mouseOffset.y;
-        this.sim.set_obstacle_from_canvas(mx, my, reset, this.props.scene === SceneType[SceneType.Paint]);
+        this.sim.set_obstacle_from_canvas(mx, my, reset, this.props.scene === FluidSceneType[FluidSceneType.Paint]);
         this.props.showObstacle = true;
         this.sim.show_obstacle = true;
         this.props.animate = true;
