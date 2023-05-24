@@ -103,12 +103,6 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12f597d56c1bd55a811a1be189459e8fad2bbc272616375602443bdfb37fa774"
-
-[[package]]
-name = "glam"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad83ab008a4fa3b31dfa713dd41b5a9bdea1e94e4cf1e2fc274ffbd49b0271d3"
@@ -265,10 +259,10 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 [[package]]
 name = "solver"
 version = "0.0.0"
-source = "git+https://github.com/cerrno/pbd-fluid-rs?rev=62747ac#62747ac8ce1d06b6dbc067c027cb8dc566f01f5e"
+source = "git+https://github.com/cerrno/pbd-fluid-rs?rev=df7991c#df7991cb96ee9448a015127f9b5868c26369f169"
 dependencies = [
  "cgmath",
- "glam 0.22.0",
+ "glam",
 ]
 
 [[package]]
@@ -294,7 +288,7 @@ version = "0.2.0"
 dependencies = [
  "cgmath",
  "getrandom",
- "glam 0.24.0",
+ "glam",
  "js-sys",
  "once_cell",
  "rand",
