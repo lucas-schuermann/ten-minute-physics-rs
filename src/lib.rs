@@ -12,6 +12,7 @@ mod fluid_2d_challenge;
 mod fluid_sim_17;
 mod fractals_19;
 mod hashing_11;
+mod heightfield_water_20;
 mod mesh;
 mod parallel_cloth_16;
 mod self_collision_15;
