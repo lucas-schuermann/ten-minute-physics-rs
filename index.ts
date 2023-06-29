@@ -14,6 +14,7 @@ import { BodyChainDemo, BodyChainDemoConfig } from './src/body_chain_challenge';
 import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/fluid_2d_challenge';
 import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth_16';
 import { FractalsDemo, FractalsDemoConfig } from './src/fractals_19';
+import { HeightFieldWaterDemo, HeightFieldWaterDemoConfig } from './src/heightfield_water_20';
 
 import('./pkg').then(async rust_wasm => {
     const { memory } = await rust_wasm.default();
@@ -75,6 +76,11 @@ import('./pkg').then(async rust_wasm => {
             title: 'Fractals',
             config: FractalsDemoConfig,
             demo: FractalsDemo,
+        },
+        '20-HeightFieldWater': {
+            title: 'Height Field Water',
+            config: HeightFieldWaterDemoConfig,
+            demo: HeightFieldWaterDemo,
         }
     };
 

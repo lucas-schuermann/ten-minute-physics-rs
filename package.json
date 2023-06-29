@@ -11,18 +11,18 @@
         "@types/three": "^0.151.0",
         "@wasm-tool/wasm-pack-plugin": "1.7.0",
         "cross-env": "^7.0.3",
-        "html-webpack-plugin": "^5.5.1",
+        "html-webpack-plugin": "^5.5.3",
         "text-encoding": "^0.7.0",
-        "ts-loader": "^9.4.3",
-        "typescript": "^5.0.4",
-        "wasm-pack": "^0.11.1",
-        "webpack": "^5.83.1",
-        "webpack-cli": "^5.1.1",
-        "webpack-dev-server": "^4.15.0"
+        "ts-loader": "^9.4.4",
+        "typescript": "^5.1.6",
+        "wasm-pack": "^0.12.1",
+        "webpack": "^5.88.1",
+        "webpack-cli": "^5.1.4",
+        "webpack-dev-server": "^4.15.1"
     },
     "dependencies": {
         "comlink": "^4.4.1",
-        "lil-gui": "^0.18.1",
+        "lil-gui": "^0.18.2",
         "stats.js": "^0.17.0",
         "three": "^0.151.3",
         "wasm-feature-detect": "^1.5.1"

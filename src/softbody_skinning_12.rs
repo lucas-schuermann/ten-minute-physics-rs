@@ -115,7 +115,6 @@ impl SkinnedSoftbodySimulation {
         self.tet_ids.iter().flat_map(|e| e.to_vec()).collect()
     }
 
-    // We can copy since we are not performance sensitive for these two methods
     #[wasm_bindgen(getter)]
     pub fn edge_ids(&self) -> Vec<usize> {
         // NOTE: this heap allocates for the return value!
