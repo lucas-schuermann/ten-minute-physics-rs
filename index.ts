@@ -156,7 +156,7 @@ import('./pkg').then(async rust_wasm => {
 
     // populate controls window
     const props = {
-        demoSelection: demoNames.at(-1), //[Math.floor(Math.random() * demoNames.length)], // default to a random demo
+        demoSelection: demoNames[Math.floor(Math.random() * demoNames.length)], // default to a random demo
         reset: () => demo.reset(),
     }
     const gui = new GUI({ autoPlace: false });
