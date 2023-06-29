@@ -4,7 +4,6 @@ use glam::{vec3, Vec3};
 use wasm_bindgen::prelude::*;
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);
-const TIME_STEP: f32 = 1.0 / 30.0;
 const WAVE_SPEED: f32 = 2.0;
 const POS_DAMPING: f32 = 1.0;
 const VEL_DAMPING: f32 = 0.3;
@@ -124,7 +123,6 @@ pub struct HeightFieldWaterSimulation {
 
     // surface
     spacing: f32,
-    heights: Vec<f32>,
     body_heights: Vec<f32>,
     prev_heights: Vec<f32>,
     velocities: Vec<f32>,
@@ -156,9 +154,15 @@ impl HeightFieldWaterSimulation {
         let num_z = f32::floor(size_z / spacing) as usize + 1;
         let num_cells = num_x * num_z;
 
+        let mut positions = vec![Vec3::ZERO; num_cells];
         let mut uvs = vec![0.0; num_cells * 2];
+        let cx = f32::floor(num_x as f32 / 2.0);
+        let cz = f32::floor(num_z as f32 / 2.0);
         for i in 0..num_x {
             for j in 0..num_z {
+                positions[i * num_z + j] =
+                    vec3((i as f32 - cx) * spacing, depth, (j as f32 - cz) * spacing);
+
                 uvs[2 * (i * num_z + j)] = i as f32 / num_x as f32;
                 uvs[2 * (i * num_z + j) + 1] = j as f32 / num_z as f32;
             }
@@ -174,14 +178,18 @@ impl HeightFieldWaterSimulation {
                 let id3 = (i + 1) * num_z + j;
 
                 indices[pos] = id0;
-                indices[pos + 1] = id1;
-                indices[pos + 2] = id2;
-                pos += 3;
+                pos += 1;
+                indices[pos] = id1;
+                pos += 1;
+                indices[pos] = id2;
+                pos += 1;
 
                 indices[pos] = id0;
-                indices[pos + 1] = id2;
-                indices[pos + 2] = id3;
-                pos += 3;
+                pos += 1;
+                indices[pos] = id2;
+                pos += 1;
+                indices[pos] = id3;
+                pos += 1;
             }
         }
 
@@ -191,13 +199,12 @@ impl HeightFieldWaterSimulation {
             num_cells,
 
             spacing,
-            heights: vec![depth; num_cells],
             body_heights: vec![0.0; num_cells],
             prev_heights: vec![depth; num_cells],
             velocities: vec![0.0; num_cells],
             wave_speed: WAVE_SPEED,
 
-            positions: vec![Vec3::ZERO; num_cells],
+            positions,
             uvs,
             indices,
 
@@ -273,7 +280,7 @@ impl HeightFieldWaterSimulation {
                     let r2 = (pos.x - x) * (pos.x - x) + (pos.z - z) * (pos.z - z);
                     if r2 < br * br {
                         let body_half_height = f32::sqrt(br * br - r2);
-                        let water_height = self.heights[xi * self.num_z + zi];
+                        let water_height = self.positions[xi * self.num_z + zi].y;
 
                         let body_min = f32::max(pos.y - body_half_height, 0.0);
                         let body_max = f32::min(pos.y + body_half_height, water_height);
@@ -292,27 +299,27 @@ impl HeightFieldWaterSimulation {
                 for zi in 0..self.num_z {
                     let id = xi * self.num_z + zi;
 
-                    let mut num = if (xi > 0 && xi < self.num_x - 1) {
+                    let mut num = if xi > 0 && xi < self.num_x - 1 {
                         2.0
                     } else {
                         1.0
                     };
-                    num += if (zi > 0 && zi < self.num_z - 1) {
+                    num += if zi > 0 && zi < self.num_z - 1 {
                         2.0
                     } else {
                         1.0
                     };
                     let mut avg = 0.0;
-                    if (xi > 0) {
+                    if xi > 0 {
                         avg += self.body_heights[id - self.num_z];
                     }
-                    if (xi < self.num_x - 1) {
+                    if xi < self.num_x - 1 {
                         avg += self.body_heights[id + self.num_z];
                     }
-                    if (zi > 0) {
+                    if zi > 0 {
                         avg += self.body_heights[id - 1];
                     }
-                    if (zi < self.num_z - 1) {
+                    if zi < self.num_z - 1 {
                         avg += self.body_heights[id + 1];
                     }
                     avg /= num;
@@ -323,7 +330,7 @@ impl HeightFieldWaterSimulation {
 
         for i in 0..self.num_cells {
             let body_change = self.body_heights[i] - self.prev_heights[i];
-            self.heights[i] += ALPHA * body_change;
+            self.positions[i].y += ALPHA * body_change;
         }
     }
 
@@ -336,32 +343,32 @@ impl HeightFieldWaterSimulation {
         for i in 0..self.num_x {
             for j in 0..self.num_z {
                 let id = i * self.num_z + j;
-                let h = self.heights[id];
+                let h = self.positions[id].y;
                 let mut sum_h = 0.0;
                 sum_h += if i > 0 {
-                    self.heights[id - self.num_z]
+                    self.positions[id - self.num_z].y
                 } else {
                     h
                 };
                 sum_h += if i < self.num_x - 1 {
-                    self.heights[id + self.num_z]
+                    self.positions[id + self.num_z].y
                 } else {
                     h
                 };
-                sum_h += if j > 0 { self.heights[id - 1] } else { h };
+                sum_h += if j > 0 { self.positions[id - 1].y } else { h };
                 sum_h += if j < self.num_z - 1 {
-                    self.heights[id + 1]
+                    self.positions[id + 1].y
                 } else {
                     h
                 };
                 self.velocities[id] += dt * c * (sum_h - 4.0 * h);
-                self.heights[id] += (0.25 * sum_h - h) * pd; // positional damping
+                self.positions[id].y += (0.25 * sum_h - h) * pd; // positional damping
             }
         }
 
         for i in 0..self.num_cells {
             self.velocities[i] *= vd; // velocity damping
-            self.heights[i] += self.velocities[i] * dt;
+            self.positions[i].y += self.velocities[i] * dt;
         }
     }
 
@@ -371,30 +378,20 @@ impl HeightFieldWaterSimulation {
 
         for i in 0..self.balls.len() {
             self.balls[i].step(dt, self.boundary_x, self.boundary_z, self.boundary_size);
-            for j in 0..i {
-                //self.balls[i].handle_collision(&mut self.balls[j]); // TODO: borrow checker is dumb
+            let (a, b) = self.balls.split_at_mut(i);
+            for other in a {
+                b[0].handle_collision(other);
             }
-        }
-
-        // TODO: should we just operate on positions directly?
-        for (i, p) in self.positions.iter_mut().enumerate() {
-            p.y = self.heights[i];
         }
     }
 
     pub fn reset(&mut self, depth: f32) {
-        let cx = f32::floor(self.num_x as f32 / 2.0);
-        let cz = f32::floor(self.num_z as f32 / 2.0);
-        for i in 0..self.num_x {
-            for j in 0..self.num_z {
-                self.positions[i * self.num_z + j] = vec3(
-                    (i as f32 - cx) * self.spacing,
-                    depth,
-                    (j as f32 - cz) * self.spacing,
-                );
-            }
-        }
+        self.positions.iter_mut().for_each(|p| p.y = depth);
+        self.body_heights.fill(0.0);
+        self.velocities.fill(0.0);
+        self.wave_speed = WAVE_SPEED;
 
+        self.balls.clear();
         self.balls.push(Ball::new(vec3(-0.5, 1.0, -0.5), 0.2, 2.0));
         self.balls.push(Ball::new(vec3(0.5, 1.0, -0.5), 0.3, 0.7));
         self.balls.push(Ball::new(vec3(0.5, 1.0, 0.5), 0.25, 0.2));
