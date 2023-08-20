@@ -1,4 +1,4 @@
-![Build](https://github.com/cerrno/ten-minute-physics-rs/actions/workflows/main.yml/badge.svg) [![Netlify Status](https://api.netlify.com/api/v1/badges/9bb62294-312b-4c27-8700-468eece0c83f/deploy-status)](https://app.netlify.com/sites/ten-minute-physics-rs/deploys)
+![Build](https://github.com/lucas-schuermann/ten-minute-physics-rs/actions/workflows/main.yml/badge.svg) [![Netlify Status](https://api.netlify.com/api/v1/badges/9bb62294-312b-4c27-8700-468eece0c83f/deploy-status)](https://app.netlify.com/sites/ten-minute-physics-rs/deploys)
 
 `ten-minute-physics-rs` reimplements Matthias Müller's ["Ten Minute Physics"](https://matthias-research.github.io/pages/tenMinutePhysics/index.html) demos in Rust with WASM + WebGL. Compared with the source pure Javascript implementations, many Rust versions run *~3x faster* in Chrome on an M1 Max MacBook.
 

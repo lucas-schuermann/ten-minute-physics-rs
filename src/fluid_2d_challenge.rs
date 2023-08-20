@@ -1,5 +1,5 @@
-//! Adapted from my separate position-based fluid [repository](https://github.com/cerrno/pbd-fluid-rs/)
-//! using the `solver` crate and demo [setup](https://github.com/cerrno/pbd-fluid-rs/blob/master/src/lib.rs)
+//! Adapted from my separate position-based fluid [repository](https://github.com/lucas-schuermann/pbd-fluid-rs/)
+//! using the `solver` crate and demo [setup](https://github.com/lucas-schuermann/pbd-fluid-rs/blob/master/src/lib.rs)
 
 use glam::vec2;
 use wasm_bindgen::prelude::*;

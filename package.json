@@ -16,7 +16,7 @@
         "ts-loader": "^9.4.4",
         "typescript": "^5.1.6",
         "wasm-pack": "^0.12.1",
-        "webpack": "^5.88.1",
+        "webpack": "^5.88.2",
         "webpack-cli": "^5.1.4",
         "webpack-dev-server": "^4.15.1"
     },
@@ -24,7 +24,7 @@
         "comlink": "^4.4.1",
         "lil-gui": "^0.18.2",
         "stats.js": "^0.17.0",
-        "three": "^0.151.3",
+        "three": "^0.151.0",
         "wasm-feature-detect": "^1.5.1"
     }
 }

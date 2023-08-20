@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "ten-minute-physics-rs"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: "Lucas V."
+    family-names: "Schuermann"
+    email: lucas@lvs.io
+repository-code: "https://github.com/lucas-schuermann/ten-minute-physics-rs"
+license: MIT
+date-released: 2022-12-26
