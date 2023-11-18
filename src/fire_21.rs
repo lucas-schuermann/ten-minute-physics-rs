@@ -48,8 +48,8 @@ pub struct FireSimulation {
     t: Vec<f32>,
     new_t: Vec<f32>,
 
-    num_swirls: usize,
     pub swirl_probability: f32,
+    num_swirls: usize,
     swirl_pos: Vec<Vec2>,
     swirl_omega: Vec<f32>,
     swirl_time: Vec<f32>,
@@ -153,7 +153,7 @@ impl FireSimulation {
             c_scale: height / domain_height,
             context,
             show_obstacle: true,
-            show_swirls: true,
+            show_swirls: false,
         };
 
         fire

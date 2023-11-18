@@ -6,6 +6,14 @@ import { Demo, Scene2DCanvas, Scene2DConfig } from './lib';
 
 type FireDemoProps = {
     animate: boolean;
+    numCells: number;
+    numIters: number;
+    overRelaxation: number;
+    swirlProbability: number;
+    showObstacle: boolean;
+    showSwirls: boolean;
+    burningObstacle: boolean;
+    burningFloor: boolean;
 };
 
 const FireDemoConfig: Scene2DConfig = {
@@ -31,7 +39,14 @@ class FireDemo implements Demo<FireSimulation, FireDemoProps> {
     }
 
     init() {
-        //this.props.numCells = this.sim.num_cells;
+        this.props.numCells = this.sim.num_cells;
+        this.props.numIters = this.sim.num_iters;
+        this.props.overRelaxation = this.sim.over_relaxation;
+        this.props.swirlProbability = this.sim.swirl_probability;
+        this.props.showObstacle = this.sim.show_obstacle;
+        this.props.showSwirls = this.sim.show_swirls;
+        this.props.burningObstacle = this.sim.burning_obstacle;
+        this.props.burningFloor = this.sim.burning_floor;
     }
 
     update() {
@@ -55,8 +70,25 @@ class FireDemo implements Demo<FireSimulation, FireDemoProps> {
     private initControls(folder: GUI, canvas: HTMLCanvasElement) {
         this.props = {
             animate: true,
+            numCells: this.sim.num_cells,
+            numIters: this.sim.num_iters,
+            overRelaxation: this.sim.over_relaxation,
+            swirlProbability: this.sim.swirl_probability,
+            showObstacle: this.sim.show_obstacle,
+            showSwirls: this.sim.show_swirls,
+            burningObstacle: this.sim.burning_obstacle,
+            burningFloor: this.sim.burning_floor,
         };
-        folder.add(this.props, 'animate').listen();
+        folder.add(this.props, 'numCells').name('cells').disable().listen();
+        folder.add(this.props, 'numIters').name('substeps').disable().listen();
+        folder.add(this.props, 'overRelaxation').decimals(2).min(1.00).max(1.99).name('over relaxation').onChange((v: number) => (this.sim.over_relaxation = v)).listen();
+        folder.add(this.props, 'swirlProbability').decimals(0).min(0).max(100).name('swirl probability').onChange((v: number) => (this.sim.swirl_probability = v)).listen();
+        folder.add(this.props, 'burningObstacle').name('burning obstacle').onFinishChange((v: boolean) => { this.sim.burning_obstacle = v; if (this.sim.burning_obstacle) { this.sim.show_obstacle = true } }).listen(); // LVSTODO: set props too
+        folder.add(this.props, 'burningFloor').name('burning floor').onFinishChange((v: boolean) => (this.sim.burning_floor = v)).listen();
+        const sub = folder.addFolder('Rendering');
+        sub.add(this.props, 'showObstacle').name('show obstacle').onFinishChange((v: boolean) => (this.sim.show_obstacle = v)).listen();
+        sub.add(this.props, 'showSwirls').name('show swirls').onFinishChange((v: boolean) => (this.sim.show_swirls = v)).listen();
+        sub.add(this.props, 'animate').listen();
 
         // scene interaction
         this.mouseDown = false;
@@ -78,8 +110,8 @@ class FireDemo implements Demo<FireSimulation, FireDemoProps> {
         const mx = x - this.mouseOffset.x;
         const my = y - this.mouseOffset.y;
         this.sim.set_obstacle_from_canvas(mx, my, reset);
-        // this.props.showObstacle = true;
-        // this.sim.show_obstacle = true;
+        this.props.showObstacle = true;
+        this.sim.show_obstacle = true;
         this.props.animate = true;
     }
 
