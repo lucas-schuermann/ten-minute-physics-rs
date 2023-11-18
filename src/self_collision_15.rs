@@ -1,5 +1,5 @@
 use glam::{vec3, Vec3};
-use rand::Rng;
+use js_sys::Math::random;
 use wasm_bindgen::prelude::*;
 
 use crate::hashing_11::Hash;
@@ -213,7 +213,6 @@ impl SelfCollisionSimulation {
     }
 
     pub fn reset(&mut self, attach: bool) {
-        let mut rng = rand::thread_rng();
         for i in 0..NUM_X {
             for j in 0..NUM_Y {
                 let id = i * NUM_Y + j;
@@ -230,9 +229,9 @@ impl SelfCollisionSimulation {
         }
 
         self.pos.iter_mut().for_each(|p| {
-            p.x += JITTER * rng.gen::<f32>();
-            p.y += JITTER * rng.gen::<f32>();
-            p.z += JITTER * rng.gen::<f32>();
+            p.x += JITTER * random() as f32;
+            p.y += JITTER * random() as f32;
+            p.z += JITTER * random() as f32;
         });
 
         self.rest_pos.copy_from_slice(&self.pos);

@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use glam::{vec3, Vec3};
-use rand::Rng;
+use js_sys::Math::random;
 use wasm_bindgen::prelude::*;
 
 use crate::mesh::{self, MeshData};
@@ -168,10 +168,9 @@ impl ClothSimulation {
 
     fn randomize_vels(&mut self) {
         // slightly perturb initial velocities for better drop visual
-        let mut rng = rand::thread_rng();
         self.vel
             .iter_mut()
-            .for_each(|v| *v = Vec3::splat(rng.gen::<f32>() * INITIAL_VEL_SCALING));
+            .for_each(|v| *v = Vec3::splat(random() as f32 * INITIAL_VEL_SCALING));
     }
 
     #[wasm_bindgen(getter)]

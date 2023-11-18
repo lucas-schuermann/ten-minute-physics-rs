@@ -7,24 +7,24 @@
         "serve": "cross-env RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' webpack serve --mode production"
     },
     "devDependencies": {
-        "@types/stats.js": "^0.17.0",
+        "@types/stats.js": "^0.17.3",
         "@types/three": "^0.151.0",
         "@wasm-tool/wasm-pack-plugin": "1.7.0",
         "cross-env": "^7.0.3",
         "html-webpack-plugin": "^5.5.3",
         "text-encoding": "^0.7.0",
-        "ts-loader": "^9.4.4",
-        "typescript": "^5.1.6",
+        "ts-loader": "^9.5.1",
+        "typescript": "^5.2.2",
         "wasm-pack": "^0.12.1",
-        "webpack": "^5.88.2",
+        "webpack": "^5.89.0",
         "webpack-cli": "^5.1.4",
         "webpack-dev-server": "^4.15.1"
     },
     "dependencies": {
         "comlink": "^4.4.1",
-        "lil-gui": "^0.18.2",
+        "lil-gui": "^0.19.1",
         "stats.js": "^0.17.0",
         "three": "^0.151.0",
-        "wasm-feature-detect": "^1.5.1"
+        "wasm-feature-detect": "^1.6.1"
     }
 }
