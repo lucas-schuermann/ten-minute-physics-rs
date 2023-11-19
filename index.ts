@@ -162,9 +162,7 @@ import('./pkg').then(async rust_wasm => {
 
     // populate controls window
     const props = {
-        //demoSelection: demoNames[Math.floor(Math.random() * demoNames.length)], // default to a random demo
-        // LVSTODO
-        demoSelection: '21-Fire',
+        demoSelection: demoNames[Math.floor(Math.random() * demoNames.length)], // default to a random demo
         reset: () => demo.reset(),
     }
     const gui = new GUI({ autoPlace: false });

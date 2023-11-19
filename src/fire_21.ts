@@ -83,7 +83,13 @@ class FireDemo implements Demo<FireSimulation, FireDemoProps> {
         folder.add(this.props, 'numIters').name('substeps').disable().listen();
         folder.add(this.props, 'overRelaxation').decimals(2).min(1.00).max(1.99).name('over relaxation').onChange((v: number) => (this.sim.over_relaxation = v)).listen();
         folder.add(this.props, 'swirlProbability').decimals(0).min(0).max(100).name('swirl probability').onChange((v: number) => (this.sim.swirl_probability = v)).listen();
-        folder.add(this.props, 'burningObstacle').name('burning obstacle').onFinishChange((v: boolean) => { this.sim.burning_obstacle = v; if (this.sim.burning_obstacle) { this.sim.show_obstacle = true } }).listen(); // LVSTODO: set props too
+        folder.add(this.props, 'burningObstacle').name('burning obstacle').onFinishChange((v: boolean) => {
+            this.sim.burning_obstacle = v;
+            if (this.sim.burning_obstacle) {
+                this.props.showObstacle = true;
+                this.sim.show_obstacle = true;
+            }
+        }).listen();
         folder.add(this.props, 'burningFloor').name('burning floor').onFinishChange((v: boolean) => (this.sim.burning_floor = v)).listen();
         const sub = folder.addFolder('Rendering');
         sub.add(this.props, 'showObstacle').name('show obstacle').onFinishChange((v: boolean) => (this.sim.show_obstacle = v)).listen();

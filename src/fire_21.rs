@@ -6,15 +6,23 @@ use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 
 const SIM_HEIGHT: f32 = 1.0;
-//const DEFAULT_OBSTACLE_POS: Vec2 = Vec2::ZERO;
 const DEFAULT_OBSTACLE_RADIUS: f32 = 0.2;
 const DEFAULT_NUM_ITERS: usize = 10;
 const DEFAULT_OVER_RELAXATION: f32 = 1.9;
 const DEFAULT_TIMESTEP: f32 = 1.0 / 60.0;
-const DEFAULT_SWIRL_PROBABILITY: f32 = 80.0; // 50.0
-const SWIRL_MAX_RADIUS: f32 = 0.04; // 0.05
+const DEFAULT_SWIRL_PROBABILITY: f32 = 50.0;
+const DEFAULT_SWIRL_MAX_RADIUS: f32 = 0.05;
 const MAX_NUM_SWIRLS: usize = 100;
 const DEFAULT_NUM_CELLS: f32 = 100_000.0;
+const OBSTACLE_INTERACTION_VELOCITY_SCALE: f32 = 0.2;
+const SWIRL_TIME_SPAN: f32 = 1.0;
+const SWIRL_OMEGA: f32 = 20.0;
+const SWIRL_DAMPING: f32 = 10.0;
+const FIRE_COOLING: f32 = 1.2;
+const SMOKE_COOLING: f32 = 0.3;
+const LIFT: f32 = 3.0;
+const ACCELERATION: f32 = 6.0;
+const SMOKE_TEMPERATURE_CUTOFF: f32 = 0.3;
 
 #[derive(Clone, Copy)]
 enum Field {
@@ -49,6 +57,7 @@ pub struct FireSimulation {
     new_t: Vec<f32>,
 
     pub swirl_probability: f32,
+    swirl_max_radius: f32,
     num_swirls: usize,
     swirl_pos: Vec<Vec2>,
     swirl_omega: Vec<f32>,
@@ -63,34 +72,23 @@ pub struct FireSimulation {
     pub show_swirls: bool,
 }
 
-fn set_color(dest: &mut [u8; 4], src: &[f32; 3]) {
+fn set_fire_color(dest: &mut [u8; 4], val: f32) {
+    let val = f32::clamp(val, 0.0, 1.0);
+
+    let src = if val < SMOKE_TEMPERATURE_CUTOFF {
+        let s = val / SMOKE_TEMPERATURE_CUTOFF;
+        [51.0 * s, 51.0 * s, 51.0 * s]
+    } else if val < 0.5 {
+        let s = (val - SMOKE_TEMPERATURE_CUTOFF) / 0.2;
+        [51.0 + 204.0 * s, 25.5, 25.5]
+    } else {
+        let s = (val - 0.5) / 0.48;
+        [255.0, 255.0 * s, 0.0]
+    };
+
     dest[0] = f32::floor(src[0]) as u8;
     dest[1] = f32::floor(src[1]) as u8;
     dest[2] = f32::floor(src[2]) as u8;
-}
-
-fn get_fire_color(val: f32) -> [f32; 3] {
-    let val = f32::clamp(val, 0.0, 1.0);
-    let r;
-    let g;
-    let b;
-    if val < 0.3 {
-        let s = val / 0.3;
-        r = 0.2 * s;
-        g = 0.2 * s;
-        b = 0.2 * s;
-    } else if val < 0.5 {
-        let s = (val - 0.3) / 0.2;
-        r = 0.2 + 0.8 * s;
-        g = 0.1;
-        b = 0.1;
-    } else {
-        let s = (val - 0.5) / 0.48;
-        r = 1.0;
-        g = s;
-        b = 0.0;
-    }
-    return [255.0 * r, 255.0 * g, 255.0 * b];
 }
 
 #[wasm_bindgen]
@@ -108,18 +106,15 @@ impl FireSimulation {
         let num_cells_y = f32::floor(domain_height / h) as usize + 2;
         let num_cells = num_cells_x * num_cells_y;
 
-        // LVSTODO
-        //         if (numX < numY) {
-        //             scene.swirlProbability = 80.0;
-        //             scene.swirlMaxRadius = 0.04;
-        //         }
-        //
-        //         scene.obstacleX = 0.5 * numX * h;
-        //         scene.obstacleY = 0.3 * numY * h;
-        //         scene.showObstacle = scene.burningObstacle;
+        let mut swirl_probability = DEFAULT_SWIRL_PROBABILITY;
+        let mut swirl_max_radius = DEFAULT_SWIRL_MAX_RADIUS;
+        if num_cells_x < num_cells_y {
+            swirl_probability = 80.0;
+            swirl_max_radius = 0.04;
+        }
         let obstacle_pos = Vec2::new(0.5 * num_cells_x as f32 * h, 0.3 * num_cells_y as f32 * h);
 
-        let fire = Self {
+        Self {
             h,
             dt: DEFAULT_TIMESTEP,
             num_iters: DEFAULT_NUM_ITERS,
@@ -141,8 +136,9 @@ impl FireSimulation {
             t: vec![0.0; num_cells],
             new_t: vec![0.0; num_cells],
 
+            swirl_probability,
+            swirl_max_radius,
             num_swirls: 0,
-            swirl_probability: DEFAULT_SWIRL_PROBABILITY,
             swirl_pos: vec![Vec2::ZERO; MAX_NUM_SWIRLS],
             swirl_omega: vec![0.0; MAX_NUM_SWIRLS],
             swirl_time: vec![0.0; MAX_NUM_SWIRLS],
@@ -154,9 +150,7 @@ impl FireSimulation {
             context,
             show_obstacle: true,
             show_swirls: false,
-        };
-
-        fire
+        }
     }
 
     fn solve_incompressibility(&mut self) {
@@ -336,26 +330,23 @@ impl FireSimulation {
     fn update_fire(&mut self) {
         let dt = self.dt;
         let h = self.h;
-        let swirl_time_span = 1.0;
-        let swirl_omega = 20.0;
-        let swirl_damping = 10.0 * self.dt;
+        let swirl_damping = SWIRL_DAMPING * dt;
         let swirl_probability = self.swirl_probability * h * h;
 
-        let fire_cooling = 1.2 * self.dt;
-        let smoke_cooling = 0.3 * self.dt;
-        let lift = 3.0;
-        let acceleration = 6.0 * self.dt;
-        let kernel_radius = SWIRL_MAX_RADIUS;
+        let fire_cooling = FIRE_COOLING * dt;
+        let smoke_cooling = SMOKE_COOLING * dt;
+        let acceleration = ACCELERATION * dt;
+        let kernel_radius = self.swirl_max_radius;
 
         // update swirls
         let n = self.num_cells_y;
-        let max_x = (self.num_cells_x - 1) as f32 * self.h;
-        let max_y = (self.num_cells_y - 1) as f32 * self.h;
+        let max_x = (self.num_cells_x - 1) as f32 * h;
+        let max_y = (self.num_cells_y - 1) as f32 * h;
 
         // kill swirls
         let mut num = 0;
         for i in 0..self.num_swirls {
-            self.swirl_time[i] -= self.dt;
+            self.swirl_time[i] -= dt;
             if self.swirl_time[i] > 0.0 {
                 self.swirl_time[num] = self.swirl_time[i];
                 self.swirl_pos[num] = self.swirl_pos[i];
@@ -367,7 +358,7 @@ impl FireSimulation {
 
         // advect and modify velocity field
         for i in 0..self.num_swirls {
-            //let age_scale = self.swirl_time[i] / swirl_time_span;
+            //let age_scale = self.swirl_time[i] / SWIRL_TIME_SPAN;
             let mut x = self.swirl_pos[i][0];
             let mut y = self.swirl_pos[i][1];
             let swirl_u = (1.0 - swirl_damping) * self.sample_field(x, y, Field::U);
@@ -399,20 +390,22 @@ impl FireSimulation {
                             1 => ((i as f32 + 0.5) * h, j as f32 * h),
                             _ => unreachable!(),
                         };
-                        let rx = vx - x; // LVSTODO use vec?
+                        let rx = vx - x;
                         let ry = vy - y;
                         let r = f32::sqrt(rx * rx + ry * ry);
 
                         if r < kernel_radius {
+                            // kernel function
                             let mut s = 1.0;
                             if r > 0.8 * kernel_radius {
                                 s = 5.0 - 5.0 / kernel_radius * r;
                                 // s = (kernel_radius - r) / kernel_radius * age_scale;
                             }
+
                             if dim == 0 {
                                 let target = ry * omega + swirl_u;
                                 let u = self.u[n * i + j];
-                                self.u[n * i + j] = (target - u) * s; // +=? LVSTODO
+                                self.u[n * i + j] += (target - u) * s;
                             } else {
                                 let target = -rx * omega + swirl_v;
                                 let v = self.v[n * i + j];
@@ -425,18 +418,23 @@ impl FireSimulation {
         }
 
         // update temperatures
-        let min_r = 0.85 * self.obstacle_radius;
-        let max_r = self.obstacle_radius + h;
+        let obstacle_min_r = 0.85 * self.obstacle_radius;
+        let obstacle_min_r2 = obstacle_min_r * obstacle_min_r;
+        let obstacle_max_r = self.obstacle_radius + h;
+        let obstacle_max_r2 = obstacle_max_r * obstacle_max_r;
 
         for i in 0..self.num_cells_x {
             for j in 0..self.num_cells_y {
                 let t = self.t[i * n + j];
 
-                let cooling = if t < 0.3 { smoke_cooling } else { fire_cooling };
+                let cooling = if t < SMOKE_TEMPERATURE_CUTOFF {
+                    smoke_cooling
+                } else {
+                    fire_cooling
+                };
                 self.t[i * n + j] = f32::max(t - cooling, 0.0);
-                // let u = self.u[i * n + j]; // LVSTODO: should be unused?
                 let v = self.v[i * n + j];
-                let target_v = t * lift;
+                let target_v = t * LIFT;
                 self.v[i * n + j] += (target_v - v) * acceleration;
 
                 let mut num_new_swirls = 0;
@@ -446,7 +444,7 @@ impl FireSimulation {
                     let dx = (i as f32 + 0.5) * h - self.obstacle_pos[0];
                     let dy = (j as f32 + 0.5) * h - self.obstacle_pos[1] - 3.0 * h;
                     let d = dx * dx + dy * dy;
-                    if min_r * min_r <= d && d < max_r * max_r {
+                    if obstacle_min_r2 <= d && d < obstacle_max_r2 {
                         self.t[i * n + j] = 1.0;
                         if (random() as f32) < 0.5 * swirl_probability {
                             num_new_swirls += 1;
@@ -470,8 +468,8 @@ impl FireSimulation {
                     }
                     let nr = self.num_swirls;
                     self.swirl_pos[nr] = Vec2::new(i as f32 * h, j as f32 * h);
-                    self.swirl_omega[nr] = (-1.0 + 2.0 * (random() as f32)) * swirl_omega;
-                    self.swirl_time[nr] = swirl_time_span;
+                    self.swirl_omega[nr] = (-1.0 + 2.0 * (random() as f32)) * SWIRL_OMEGA;
+                    self.swirl_time[nr] = SWIRL_TIME_SPAN;
                     self.num_swirls += 1;
                 }
             }
@@ -524,8 +522,7 @@ impl FireSimulation {
         for i in 0..self.num_cells_x {
             for j in 0..self.num_cells_y {
                 let t = self.t[i * n + j];
-                let fire_color = get_fire_color(t);
-                set_color(&mut color, &fire_color); // LVSTODO: combine?
+                set_fire_color(&mut color, t);
 
                 let x = f32::floor(self.c_x((i as f32 - 1.0) * h)) as usize;
                 let y = f32::floor(self.c_y((j as f32 + 1.0) * h)) as usize;
@@ -569,7 +566,7 @@ impl FireSimulation {
         }
 
         if self.show_swirls {
-            let r = SWIRL_MAX_RADIUS;
+            let r = self.swirl_max_radius;
             for i in 0..self.num_swirls {
                 let p = self.swirl_pos[i];
 
@@ -597,9 +594,11 @@ impl FireSimulation {
         if !reset {
             v = (pos - self.obstacle_pos) / self.dt;
         }
+        v *= OBSTACLE_INTERACTION_VELOCITY_SCALE;
 
         self.obstacle_pos = pos;
         let r = self.obstacle_radius;
+        let r2 = r * r;
         let n = self.num_cells_y;
         let h = self.h;
 
@@ -609,13 +608,11 @@ impl FireSimulation {
                 let dx = (i as f32 + 0.5) * h - pos.x;
                 let dy = (j as f32 + 0.5) * h - pos.y;
 
-                if dx * dx + dy * dy < r * r {
-                    //self.s[i * n + j] = 0.0;
-                    // LVSTODO move to const
-                    self.u[i * n + j] += 0.2 * v.x;
-                    self.u[(i + 1) * n + j] += 0.2 * v.x;
-                    self.v[i * n + j] += 0.2 * v.y;
-                    self.v[i * n + (j + 1)] += 0.2 * v.y;
+                if dx * dx + dy * dy < r2 {
+                    self.u[i * n + j] += v.x;
+                    self.u[(i + 1) * n + j] += v.x;
+                    self.v[i * n + j] += v.y;
+                    self.v[i * n + (j + 1)] += v.y;
                 }
             }
         }
