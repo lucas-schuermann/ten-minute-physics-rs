@@ -7,6 +7,7 @@
 
 mod body_chain_challenge;
 mod cloth_14;
+mod fire_21;
 mod flip_18;
 mod fluid_2d_challenge;
 mod fluid_sim_17;

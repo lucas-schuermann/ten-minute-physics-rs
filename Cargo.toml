@@ -1,6 +1,6 @@
 [package]
 name = "ten-minute-physics-rs"
-version = "0.2.0"
+version = "0.3.0"
 repository = "https://github.com/lucas-schuermann/ten-minute-physics-rs"
 authors = ["Lucas V. Schuermann <lucas@lvs.io>"]
 edition = "2021"
@@ -24,11 +24,9 @@ web-sys = { version = "0.3", features = [
     "WebGlShader",
 ] }
 glam = { version = "0.24", features = ["fast-math", "scalar-math"] }
-getrandom = { version = "0.2", features = ["js"] }
-rand = "0.8"
 once_cell = "1.18"
 wasm-bindgen-rayon = { version = "1.0" }
-rayon = { version = "1.7" }
+rayon = { version = "1.8" }
 
 pbd-fluid-solver = { git = "https://github.com/lucas-schuermann/pbd-fluid-rs", package = "solver", rev = "8d3a2a8" }
 

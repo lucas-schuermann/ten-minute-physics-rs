@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 
 // must be exported to init rayon thread pool with web workers
+#[allow(unused_imports)]
 pub use wasm_bindgen_rayon::init_thread_pool;
 
 const GRAVITY: Vec3 = vec3(0.0, -10.0, 0.0);

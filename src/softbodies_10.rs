@@ -1,5 +1,5 @@
 use glam::{vec3, Vec3};
-use rand::Rng;
+use js_sys::Math::random;
 use wasm_bindgen::prelude::*;
 
 use crate::mesh::{self, TetMeshData};
@@ -298,11 +298,10 @@ impl SoftBodiesSimulation {
     }
 
     pub fn add_body(&mut self) {
-        let mut rng = rand::thread_rng();
         let displacement = Vec3::new(
-            -1.0 + 2.0 * rng.gen::<f32>(),
+            -1.0 + 2.0 * random() as f32,
             0.0,
-            -1.0 + 2.0 * rng.gen::<f32>(),
+            -1.0 + 2.0 * random() as f32,
         );
         let mut body = SoftBody::new(
             self.num_substeps,

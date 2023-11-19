@@ -1,6 +1,6 @@
 use glam::{vec3, Vec3};
+use js_sys::Math::random;
 use once_cell::sync::Lazy;
-use rand::Rng;
 use wasm_bindgen::prelude::*;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
@@ -146,14 +146,13 @@ impl HashSimulation {
     }
 
     pub fn reset(&mut self) {
-        let mut rng = rand::thread_rng();
         for xi in 0..*NUMX {
             for yi in 0..*NUMY {
                 for zi in 0..*NUMZ {
                     let x = (xi * *NUMY + yi) * *NUMZ + zi;
                     self.pos[x] =
                         BOUNDS[0] + SPACING + Vec3::new(xi as f32, yi as f32, zi as f32) * SPACING;
-                    let r = Vec3::new(rng.gen(), rng.gen(), rng.gen());
+                    let r = Vec3::new(random() as f32, random() as f32, random() as f32);
                     self.vel[x] = -INIT_VEL_RAND + 2.0 * INIT_VEL_RAND * r;
                 }
             }

@@ -15,6 +15,7 @@ import { PositionBasedFluidDemo, PositionBasedFluidDemoConfig } from './src/flui
 import { ParallelClothDemo, ParallelClothDemoConfig } from './src/parallel_cloth_16';
 import { FractalsDemo, FractalsDemoConfig } from './src/fractals_19';
 import { HeightFieldWaterDemo, HeightFieldWaterDemoConfig } from './src/heightfield_water_20';
+import { FireDemo, FireDemoConfig } from './src/fire_21';
 
 import('./pkg').then(async rust_wasm => {
     const { memory } = await rust_wasm.default();
@@ -81,7 +82,12 @@ import('./pkg').then(async rust_wasm => {
             title: 'Height Field Water',
             config: HeightFieldWaterDemoConfig,
             demo: HeightFieldWaterDemo,
-        }
+        },
+        '21-Fire': {
+            title: 'Fire Simulation',
+            config: FireDemoConfig,
+            demo: FireDemo,
+        },
     };
 
     let canvas = $('canvas') as HTMLCanvasElement;
